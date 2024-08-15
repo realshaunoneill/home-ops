@@ -24,7 +24,7 @@ spec:
               value: Etc/UTC
           volumeMounts:
             - name: n8n-storage
-              mountPath: /home/node/.n8n
+              mountPath: /opt/n8b/data
       volumes:
         - name: n8n-storage
           hostPath:
