@@ -3,8 +3,6 @@ kind: Deployment
 metadata:
   name: n8n
   namespace: default
-  labels:
-    app: n8n
 spec:
   replicas: 1
   selector:
