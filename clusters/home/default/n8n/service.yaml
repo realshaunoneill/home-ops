@@ -8,5 +8,6 @@ spec:
   ports:
     - port: 80
       targetPort: 5678
+      loadBalancerIP: 192.168.0.84
   selector:
     app: n8n
