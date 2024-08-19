@@ -9,4 +9,4 @@ spec:
   storageClassName: nginx-proxy-manager
   resources:
     requests:
-      storage: 5Gi
+      storage: 3Gi
