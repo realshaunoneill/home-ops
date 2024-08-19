@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-ddns
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflare-ddns
+  template:
+    metadata:
+      labels:
+        app: cloudflare-ddns
+    spec:
+      containers:
+        - name: n8n
+          image: realshaunoneill/cloudflare-ddns:latest
+          env:
+            - name: CLOUDFLARE_API_KEY
+              value: AR1PYp2nof3HOeAeCsbWYxygymzZB8U6CbZ8pHjh
+            - name: DNS_URL
+              value: local.home.shaunoneill.com, mc.home.shaunoneill.com
+            - name: CRON_SCHEDULE
+              value: 0 9 * * *
+            - name: PROXIED
+              value: "false"
