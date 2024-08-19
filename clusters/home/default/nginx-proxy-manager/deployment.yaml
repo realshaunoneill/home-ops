@@ -24,12 +24,17 @@ spec:
             - name: TZ
               value: Etc/UTC
           volumeMounts:
-            - name: data
+            - name: nfs-vol-data
               mountPath: /data
-            - name: letsencrypt
+            - name: nfs-vol-letsencrypt
               mountPath: /etc/letsencrypt
       volumes:
-        - name: nfs-vol
+        - name: nfs-vol-data
           nfs:
             server: 192.168.0.10
-            path: /mnt/user/shared/k8s/nginx-proxy-manager
+            path: /mnt/user/shared/k8s/nginx-proxy-manager/data
+        - name: nfs-vol-letsencrypt
+          nfs:
+            server: 192.168.0.10
+            path: /mnt/user/shared/k8s/nginx-proxy-manager/letsencrypt
+            
