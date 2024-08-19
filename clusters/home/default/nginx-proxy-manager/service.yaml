@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: n8n
+  name: nginx-proxy-manager
   namespace: default
 spec:
   type: LoadBalancer
@@ -14,4 +14,4 @@ spec:
     - port: 81
       targetPort: 81
   selector:
-    app: n8n
+    app: nginx-proxy-manager
