@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   type: NodePort
-  nodePort: 30081
+  nodePort: 32600
   ports:
     - port: 80
       targetPort: 5678
