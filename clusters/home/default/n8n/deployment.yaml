@@ -30,4 +30,4 @@ spec:
         - name: nfs-vol
           nfs:
             server: 192.168.0.10
-            path: /shared/k8s/
+            path: /mnt/user/shared/k8s/
