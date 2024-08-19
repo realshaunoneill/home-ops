@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: n8n-pvc
+  name: npm-pvc
   namespace: default
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: longhorn
+  storageClassName: nginx-proxy-manager
   resources:
     requests:
       storage: 3Gi
