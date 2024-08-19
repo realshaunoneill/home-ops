@@ -24,10 +24,9 @@ spec:
             - name: N8N_SECURE_COOKIE
               value: "false"
           volumeMounts:
-            - name: nfs-vol
+            - name: n8n-storage
               mountPath: /home/node/.n8n
       volumes:
-        - name: nfs-vol
-          nfs:
-            server: 192.168.0.10
-            path: /mnt/user/shared/k8s/n8n
+        - name: n8n-storage
+          persistentVolumeClaim:
+            claimName: n8n-pvc
