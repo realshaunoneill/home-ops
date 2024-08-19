@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-proxy-manager
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-proxy-manager
+  template:
+    metadata:
+      labels:
+        app: nginx-proxy-manager
+    spec:
+      containers:
+        - name: nginx-proxy-manager
+          image: 'jc21/nginx-proxy-manager:latest'
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+            - containerPort: 81
+          env:
+            - name: TZ
+              value: Etc/UTC
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: letsencrypt
+              mountPath: /etc/letsencrypt
+      volumes:
+        - name: nfs-vol
+          nfs:
+            server: 192.168.0.10
+            path: /mnt/user/shared/k8s/nginx-proxy-manager
