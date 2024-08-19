@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overseerr
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: overseerr
+  template:
+    metadata:
+      labels:
+        app: overseerr
+    spec:
+      containers:
+        - name: overseerr
+          image: lscr.io/linuxserver/overseerr:latest
+          ports:
+            - containerPort: 5055
+          env:
+            - name: TZ
+              value: Etc/UTC
+          volumeMounts:
+            - name: nfs-vol
+              mountPath: /config
+      volumes:
+        - name: nfs-vol
+          nfs:
+            server: 192.168.0.10
+            path: /mnt/user/shared/k8s/overseerr
