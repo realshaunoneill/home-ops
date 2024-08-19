@@ -23,6 +23,10 @@ spec:
           env:
             - name: TZ
               value: Etc/UTC
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
           volumeMounts:
             - name: nfs-vol-data
               mountPath: /data
