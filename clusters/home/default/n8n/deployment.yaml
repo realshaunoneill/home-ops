@@ -25,9 +25,9 @@ spec:
               value: "false"
           volumeMounts:
             - name: nfs-vol
-              mountPath: /opt/n8n/data
+              mountPath: /home/node/.n8n
       volumes:
         - name: nfs-vol
           nfs:
             server: 192.168.0.10
-            path: /mnt/user/shared/k8s/
+            path: /mnt/user/shared/k8s/n8n
