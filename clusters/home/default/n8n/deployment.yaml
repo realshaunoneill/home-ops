@@ -24,10 +24,10 @@ spec:
             - name: N8N_SECURE_COOKIE
               value: "false"
           volumeMounts:
-            - name: n8n-storage
-              mountPath: /opt/n8b/data
+            - name: nfs-vol
+              mountPath: /opt/n8n/data
       volumes:
-        - name: n8n-storage
-          hostPath:
-            path: /opt/n8n
-            type: Directory
+        - name: nfs-vol
+          nfs:
+            server: 192.168.0.10
+            path: /shared/k8s/
