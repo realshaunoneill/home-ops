@@ -6,7 +6,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: nginx-proxy-manager
+  storageClassName: longhorn
   resources:
     requests:
       storage: 3Gi
