@@ -23,22 +23,16 @@ spec:
           env:
             - name: TZ
               value: Etc/UTC
-            - name: PUID
-              value: "0"
-            - name: PGID
-              value: "0"
           volumeMounts:
-            - name: nfs-vol-data
+            - name: npm-vol-data
               mountPath: /data
-            - name: nfs-vol-letsencrypt
+            - name: npm-vol-letsencrypt
               mountPath: /etc/letsencrypt
       volumes:
-        - name: nfs-vol-data
-          nfs:
-            server: 192.168.0.10
-            path: /mnt/user/shared/k8s/nginx-proxy-manager/data
-        - name: nfs-vol-letsencrypt
-          nfs:
-            server: 192.168.0.10
-            path: /mnt/user/shared/k8s/nginx-proxy-manager/letsencrypt
+        - name: npm-vol-data
+          persistentVolumeClaim:
+            claimName: npm-pvc
+        - name: npm-vol-letsencrypt
+          persistentVolumeClaim:
+            claimName: npm-pvc
             
