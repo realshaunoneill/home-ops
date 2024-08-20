@@ -15,9 +15,9 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: docker.n8n.io/n8nio/n8n:next
+          image: grafana/grafana:latest
           ports:
-            - containerPort: 5678
+            - containerPort: 3000
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: admin
