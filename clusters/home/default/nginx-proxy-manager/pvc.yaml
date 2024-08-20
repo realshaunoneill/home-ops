@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: npm-pvc
+  name: nginx-proxy-manager-data
   namespace: default
 spec:
   accessModes:
@@ -9,4 +9,17 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      storage: 3Gi
+      storage: 5Gi  # Adjust size as needed
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nginx-proxy-manager-letsencrypt
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi  # Adjust size as needed
