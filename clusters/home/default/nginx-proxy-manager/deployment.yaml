@@ -23,16 +23,19 @@ spec:
           env:
             - name: TZ
               value: Etc/UTC
+            - name: PUID
+              value: "0"
+            - name: PGID
+              value: "0"
           volumeMounts:
-            - name: npm-vol-data
+            - name: longhorn-vol-data
               mountPath: /data
-            - name: npm-vol-letsencrypt
+            - name: longhorn-vol-letsencrypt
               mountPath: /etc/letsencrypt
       volumes:
-        - name: npm-vol-data
+        - name: longhorn-vol-data
           persistentVolumeClaim:
-            claimName: npm-pvc
-        - name: npm-vol-letsencrypt
+            claimName: nginx-proxy-manager-data
+        - name: longhorn-vol-letsencrypt
           persistentVolumeClaim:
-            claimName: npm-pvc
-            
+            claimName: nginx-proxy-manager-letsencrypt
