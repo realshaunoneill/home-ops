@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plex
+  template:
+    metadata:
+      labels:
+        app: plex
+    spec:
+      containers:
+        - name: plex
+          image: lscr.io/linuxserver/plex:latest
+          ports:
+            - containerPort: 32400  # Plex Web UI port
+            - containerPort: 32469  # Plex DLNA
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: VERSION
+              value: "latest"
+            - name: PLEX_CLAIM
+              value: ""  # optional
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: movies
+              mountPath: /movies
+            - name: tv
+              mountPath: /tv
+            - name: sports
+              mountPath: /sports
+            - name: movies4k
+              mountPath: /movies4k
+            - name: moviesNew
+              mountPath: /moviesNew
+          resources:
+            limits:
+              nvidia.com/gpu: 1  # Request 1 GPU
+      nodeSelector:
+        plex: "true"
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: movies
+          hostPath:
+            path: /mnt/nas/plex/Movies
+        - name: tv
+          hostPath:
+            path: /mnt/nas/plex/TV
+        - name: sports
+          hostPath:
+            path: /mnt/nas/plex/Sports
+        - name: movies4k
+          hostPath:
+            path: /mnt/nas/plex/Movies4k
+        - name: moviesNew
+          hostPath:
+            path: /mnt/nas/plex/MoviesNew
+      restartPolicy: Always
