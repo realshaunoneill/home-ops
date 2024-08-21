@@ -47,6 +47,7 @@ spec:
           persistentVolumeClaim:
             claimName: plex-config
         - name: plex-files
-          hostPath:
-            path: /mnt/nas/plex
+          nfs:
+            server: 192.168.0.10
+            path: /mnt/user/plex
       restartPolicy: Always
