@@ -8,5 +8,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 60Gi  # Adjust the size as needed
+      storage: 10Gi  # Adjust the size as needed
   storageClassName: longhorn  # or whatever storage class you prefer
