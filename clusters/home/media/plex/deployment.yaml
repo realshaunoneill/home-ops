@@ -35,16 +35,8 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: movies
-              mountPath: /movies
-            - name: tv
-              mountPath: /tv
-            - name: sports
-              mountPath: /sports
-            - name: movies4k
-              mountPath: /movies4k
-            - name: moviesNew
-              mountPath: /moviesNew
+            - name: plexFiles
+              mountPath: /plex
           resources:
             limits:
               nvidia.com/gpu: 1  # Request 1 GPU
@@ -54,19 +46,7 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: plex-config
-        - name: movies
+        - name: plexFiles
           hostPath:
-            path: /mnt/nas/plex/Movies
-        - name: tv
-          hostPath:
-            path: /mnt/nas/plex/TV
-        - name: sports
-          hostPath:
-            path: /mnt/nas/plex/Sports
-        - name: movies4k
-          hostPath:
-            path: /mnt/nas/plex/Movies4k
-        - name: moviesNew
-          hostPath:
-            path: /mnt/nas/plex/MoviesNew
+            path: /mnt/nas/plex
       restartPolicy: Always
