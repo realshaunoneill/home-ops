@@ -11,11 +11,11 @@ spec:
     - name: udp-port
       port: 51820
       targetPort: 51820
-      nodePort: 326010
+      nodePort: 30000
       protocol: UDP
     - name: admin-port
       port: 51821
       targetPort: 51821
-      nodePort: 326011
+      nodePort: 30001
       protocol: TCP
 
