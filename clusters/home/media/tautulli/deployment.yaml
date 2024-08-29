@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: radarr
+  name: tautulli
   namespace: media
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: radarr
+      app: tautulli
   template:
     metadata:
       labels:
-        app: radarr
+        app: tautulli
     spec:
       containers:
-        - name: radarr
-          image: ghcr.io/linuxserver/radarr:5.10.0-develop
+        - name: tautulli
+          image: ghcr.io/linuxserver/tautulli:2.14.4
           ports:
-            - containerPort: 7878
+            - containerPort: 8181
           env:
             - name: PUID
               value: "1000"
@@ -26,16 +26,10 @@ spec:
             - name: TZ
               value: "Europe/London"
           volumeMounts:
-            - name: radarr-config
+            - name: tautulli-config
               mountPath: /config
-            - name: plex-media
-              mountPath: /plex
       volumes:
-        - name: radarr-config
+        - name: tautulli-config
           persistentVolumeClaim:
-            claimName: radarr-config-pvc
-        - name: plex-media
-          nfs:
-            server: 192.168.0.10
-            path: /mnt/user/plex
+            claimName: tautulli-config-pvc
   restartPolicy: Always
