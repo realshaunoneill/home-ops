@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: radarr
+  name: sonarr
   namespace: media
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: radarr
+      app: sonarr
   template:
     metadata:
       labels:
-        app: radarr
+        app: sonarr
     spec:
       containers:
-        - name: radarr
-          image: ghcr.io/linuxserver/radarr:develop
+        - name: sonarr
+          image: ghcr.io/linuxserver/sonarr:develop
           ports:
             - containerPort: 7878
           env:
@@ -26,14 +26,14 @@ spec:
             - name: TZ
               value: "Europe/London"
           volumeMounts:
-            - name: radarr-config
+            - name: sonarr-config
               mountPath: /config
             - name: plex-media
               mountPath: /plex
       volumes:
-        - name: radarr-config
+        - name: sonarr-config
           persistentVolumeClaim:
-            claimName: radarr-config-pvc
+            claimName: sonarr-config-pvc
         - name: plex-media
           nfs:
             server: 192.168.0.10
