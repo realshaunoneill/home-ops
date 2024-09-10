@@ -20,7 +20,7 @@ spec:
             - name: WG_HOST
               value: local.home.shaunoneill.com
             - name: PASSWORD
-              value: admin
+              value: '${PASSWORD_HASH}'
             - name: WG_PORT
               value: "51820"
             - name: WG_DEFAULT_DNS
