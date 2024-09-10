@@ -19,7 +19,7 @@ spec:
           env:
             - name: WG_HOST
               value: local.home.shaunoneill.com
-            - name: PASSWORD
+            - name: PASSWORD_HASH
               value: '$2a$12$qVxNpGqe52Y2P2eUuRUxJuvh0WsStDdj7qTaDVD3ZD781R3qEo0KC'
             - name: WG_PORT
               value: "51820"
