@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: sonarr
-          image: ghcr.io/linuxserver/sonarr:4.0.9-develop
+          image: ghcr.io/linuxserver/sonarr:4.0.10-develop
           ports:
             - containerPort: 8989
           env:
