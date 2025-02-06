@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nginx-proxy-manager
-          image: jc21/nginx-proxy-manager:2.12.2
+          image: jc21/nginx-proxy-manager:2.12.3
           ports:
             - containerPort: 80
             - containerPort: 443
