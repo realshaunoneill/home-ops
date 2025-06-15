@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: radarr
-          image: ghcr.io/linuxserver/radarr:5.26.1-develop
+          image: ghcr.io/linuxserver/radarr:5.27.0-develop
           ports:
             - containerPort: 7878
           env:
