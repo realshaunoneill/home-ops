@@ -3,9 +3,9 @@
   "extends": [
     "config:recommended"
   ],
-  "kubernetes": {
+  "docker-compose": {
     "managerFilePatterns": [
-      "/\\.yaml$/"
+      "/^portainer\\/.*\\/docker-compose\\.ya?ml$/"
     ]
   }
 }

@@ -1,0 +1,28 @@
+http:
+  routers:
+    radarr:
+      rule: Host(`radarr.home.shaunoneill.com`)
+      entryPoints:
+        - websecure
+      service: radarr
+      tls:
+        certResolver: myresolver
+
+    sonarr:
+      rule: Host(`sonarr.home.shaunoneill.com`)
+      entryPoints:
+        - websecure
+      service: sonarr
+      tls:
+        certResolver: myresolver
+
+  services:
+    radarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.10:7878"
+
+    sonarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.10:8989"

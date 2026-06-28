@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:5.27.3-develop
+    container_name: radarr
+    restart: unless-stopped
+
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=Europe/Dublin
+
+    volumes:
+      - /mnt/user/appdata/radarr:/config
+      - /mnt/user/plex/Movies:/plex/Movies # optional
+      - /mnt/user/plex/torrent/complete/movies:/plex/torrent/complete/movies # optional
+      - /mnt/user/plex/usenet/completed/Movies:/plex/usenet/completed/Movies # optional
+
+    ports:
+      - "7878:7878"
+
+

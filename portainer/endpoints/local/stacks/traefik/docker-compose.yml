@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+
+    command:
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"          # ok for LAN debugging; remove later
+
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # (No endpoint needed; uses /var/run/docker.sock)
+      # (No useBindPortIP needed on same host)
+
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.traefik.address=:8080"
+
+      - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.myresolver.acme.email=you@shaunoneill.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/opt/traefik/letsencrypt:/letsencrypt"
+      # Keep dynamic Traefik config versioned in this repo next to this compose file.
+      - "./dynamic:/etc/traefik/dynamic:ro"
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+

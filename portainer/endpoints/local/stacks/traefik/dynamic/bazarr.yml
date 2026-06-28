@@ -1,0 +1,15 @@
+http:
+  routers:
+    bazarr:
+      rule: "Host(`bazarr.home.shaunoneill.com`)"
+      entryPoints:
+        - websecure
+      service: bazarr
+      tls:
+        certResolver: myresolver
+
+  services:
+    bazarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.10:6767"

@@ -1,0 +1,15 @@
+http:
+  routers:
+    homeassistant:
+      rule: "Host(`home.home.shaunoneill.com`)"
+      entryPoints:
+        - websecure
+      service: homeassistant
+      tls:
+        certResolver: myresolver
+
+  services:
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.245:8123"
