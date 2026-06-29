@@ -1,0 +1,5 @@
+# Never commit real secrets — set these in Portainer's stack env editor
+# or a local .env file alongside the compose file.
+.env
+**/.env
+!**/.env.example
