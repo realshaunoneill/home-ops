@@ -2,13 +2,13 @@ version: "3.8"
 
 services:
   transmission:
-    image: ghcr.io/linuxserver/transmission:latest
+    image: ghcr.io/linuxserver/transmission:latest@sha256:9b229b05a4027a5548285f66b2ba4cbf12bdef83ddac97f726afa94fbae308c0
     container_name: transmission
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/London
+      - PUID=99
+      - PGID=100
+      - TZ=Europe/Dublin
     volumes:
       - /mnt/user/shared/services/transmission/config:/config
       - /mnt/user/plex/torrent:/plex/torrent

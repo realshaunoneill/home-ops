@@ -1,7 +1,7 @@
 version: "2.1"
 services:
   plex:
-    image: lscr.io/linuxserver/plex:latest
+    image: lscr.io/linuxserver/plex:latest@sha256:f79738b25b19d8e11658e3f2233067732023a1ab2ead8be610d75c55e425ecb8
     container_name: plex
     network_mode: host
     labels:
@@ -9,7 +9,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Etc/UTC
+      - TZ=Europe/Dublin
       - VERSION=latest
       - PLEX_CLAIM= #optional
       - NVIDIA_VISIBLE_DEVICES=all

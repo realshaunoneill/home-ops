@@ -2,9 +2,13 @@ version: '3.8'
 
 services:
   tautulli:
-    image: tautulli/tautulli:latest
+    image: tautulli/tautulli:latest@sha256:f66f65c3e5b60b94eb9dc9848fbe983009b4705f1795e4c979b961251c9637ad
     container_name: tautulli
     restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Dublin
     ports:
       - "8181:8181" # Direct access via IP:8181 (optional with Traefik)
     volumes:

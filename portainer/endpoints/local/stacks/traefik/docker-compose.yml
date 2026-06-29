@@ -14,7 +14,7 @@ services:
       - "--api.dashboard=true"
       - "--api.insecure=true"          # ok for LAN debugging; remove later
 
-      - "--log.level=DEBUG"
+      - "--log.level=INFO"
       - "--accesslog=true"
 
       - "--providers.docker=true"

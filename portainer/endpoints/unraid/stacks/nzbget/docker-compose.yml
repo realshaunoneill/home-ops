@@ -2,13 +2,13 @@ version: "3.8"
 
 services:
   nzbget:
-    image: ghcr.io/linuxserver/nzbget:latest
+    image: ghcr.io/linuxserver/nzbget:latest@sha256:0fcc12bd6ef8937ec8e9e2bccb245e4a774c386c580cf0c480353083c7fc1a82
     container_name: nzbget
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/London
+      - PUID=99
+      - PGID=100
+      - TZ=Europe/Dublin
     volumes:
       - /mnt/user/shared/services/nzbget/config:/config
       - /mnt/user/plex/usenet:/plex/usenet
