@@ -1,0 +1,15 @@
+http:
+  routers:
+    gatus:
+      rule: "Host(`uptime.home.shaunoneill.com`)"
+      entryPoints:
+        - websecure
+      service: gatus
+      tls:
+        certResolver: myresolver
+
+  services:
+    gatus:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.10:3001"

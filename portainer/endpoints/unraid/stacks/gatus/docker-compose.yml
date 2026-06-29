@@ -13,18 +13,8 @@ services:
       # Monitor definitions are versioned in git next to this compose file.
       - ./config:/config:ro
       # Persist uptime history across restarts.
-      - /opt/gatus/data:/data
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=proxy"
-      - "traefik.http.routers.gatus.rule=Host(`uptime.home.shaunoneill.com`)"
-      - "traefik.http.routers.gatus.entrypoints=websecure"
-      - "traefik.http.routers.gatus.tls.certresolver=myresolver"
-      - "traefik.http.services.gatus.loadbalancer.server.port=8080"
-    networks:
-      - proxy
-      - default
-
-networks:
-  proxy:
-    external: true
+      - /mnt/user/appdata/gatus:/data
+    ports:
+      # Routed by the local Traefik via dynamic/gatus.yml (file provider),
+      # same as the other unraid services (bazarr, prowlarr, nzbget...).
+      - "3001:8080"
