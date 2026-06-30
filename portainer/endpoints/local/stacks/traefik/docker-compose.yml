@@ -42,8 +42,24 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/opt/traefik/letsencrypt:/letsencrypt"
-      # Keep dynamic Traefik config versioned in this repo next to this compose file.
-      - "./dynamic:/etc/traefik/dynamic:ro"
+
+    # Dynamic config is embedded inline (below) and mounted into the file-provider
+    # directory. This avoids a repo-relative bind mount (./dynamic), which fails on
+    # this Portainer because "relative path volumes" can't be enabled. Edit a config
+    # block here, then pull/redeploy this stack to update routes.
+    configs:
+      - { source: dyn_middlewares, target: /etc/traefik/dynamic/middlewares.yml }
+      - { source: dyn_tls_options, target: /etc/traefik/dynamic/tls-options.yml }
+      - { source: dyn_bazarr, target: /etc/traefik/dynamic/bazarr.yml }
+      - { source: dyn_clawdbot, target: /etc/traefik/dynamic/clawdbot.yml }
+      - { source: dyn_homeassistant, target: /etc/traefik/dynamic/homeassistant.yml }
+      - { source: dyn_nzbget, target: /etc/traefik/dynamic/nzbget.yml }
+      - { source: dyn_plex, target: /etc/traefik/dynamic/plex.yml }
+      - { source: dyn_prowlarr, target: /etc/traefik/dynamic/prowlarr.yml }
+      - { source: dyn_proxmox, target: /etc/traefik/dynamic/proxmox.yml }
+      - { source: dyn_radarr_sonarr, target: /etc/traefik/dynamic/radarr-sonarr.yml }
+      - { source: dyn_traefik_dashboard, target: /etc/traefik/dynamic/traefik-dashboard.yml }
+      - { source: dyn_wireguard, target: /etc/traefik/dynamic/wireguard.yml }
 
     networks:
       - proxy
@@ -52,3 +68,225 @@ networks:
   proxy:
     external: true
 
+configs:
+  dyn_middlewares:
+    content: |
+      http:
+        middlewares:
+          default-secure-headers:
+            headers:
+              browserXssFilter: true
+              contentTypeNosniff: true
+              frameDeny: true
+              referrerPolicy: strict-origin-when-cross-origin
+              stsSeconds: 31536000
+              stsIncludeSubdomains: true
+              stsPreload: true
+          default-compress:
+            compress: {}
+          default-chain:
+            chain:
+              middlewares:
+                - default-compress
+                - default-secure-headers
+
+  dyn_tls_options:
+    content: |
+      tls:
+        options:
+          default:
+            minVersion: VersionTLS12
+            sniStrict: true
+
+  dyn_bazarr:
+    content: |
+      http:
+        routers:
+          bazarr:
+            rule: "Host(`bazarr.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: bazarr
+            tls:
+              certResolver: myresolver
+        services:
+          bazarr:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:6767"
+
+  dyn_clawdbot:
+    content: |
+      http:
+        routers:
+          clawdbot:
+            rule: "Host(`clawdbot.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: clawdbot
+            tls:
+              certResolver: myresolver
+        services:
+          clawdbot:
+            loadBalancer:
+              servers:
+                - url: "https://192.168.0.30:18789"
+
+  dyn_homeassistant:
+    content: |
+      http:
+        routers:
+          homeassistant:
+            rule: "Host(`home.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: homeassistant
+            tls:
+              certResolver: myresolver
+        services:
+          homeassistant:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.245:8123"
+
+  dyn_nzbget:
+    content: |
+      http:
+        routers:
+          nzbget:
+            rule: "Host(`nzbget.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: nzbget
+            tls:
+              certResolver: myresolver
+        services:
+          nzbget:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:6789"
+
+  dyn_plex:
+    content: |
+      http:
+        routers:
+          plex:
+            rule: "Host(`plex.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            middlewares:
+              - plex-web-redirect
+            service: plex
+            tls:
+              certResolver: myresolver
+        middlewares:
+          plex-web-redirect:
+            redirectRegex:
+              regex: "^https?://([^/]+)/?$$"
+              replacement: "https://$${1}/web"
+              permanent: true
+        services:
+          plex:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.20:32400"
+
+  dyn_prowlarr:
+    content: |
+      http:
+        routers:
+          prowlarr:
+            rule: "Host(`prowlarr.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: prowlarr
+            tls:
+              certResolver: myresolver
+        services:
+          prowlarr:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:9696"
+
+  dyn_proxmox:
+    content: |
+      http:
+        routers:
+          proxmox:
+            rule: "Host(`proxmox.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: proxmox
+            tls:
+              certResolver: myresolver
+        services:
+          proxmox:
+            loadBalancer:
+              servers:
+                - url: "https://192.168.0.200:8006"
+              serversTransport: proxmox-insecure
+        serversTransports:
+          proxmox-insecure:
+            insecureSkipVerify: true
+
+  dyn_radarr_sonarr:
+    content: |
+      http:
+        routers:
+          radarr:
+            rule: Host(`radarr.home.shaunoneill.com`)
+            entryPoints:
+              - websecure
+            service: radarr
+            tls:
+              certResolver: myresolver
+          sonarr:
+            rule: Host(`sonarr.home.shaunoneill.com`)
+            entryPoints:
+              - websecure
+            service: sonarr
+            tls:
+              certResolver: myresolver
+        services:
+          radarr:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:7878"
+          sonarr:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:8989"
+
+  dyn_traefik_dashboard:
+    content: |
+      http:
+        routers:
+          traefik:
+            rule: "Host(`traefik.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: traefik
+            tls:
+              certResolver: myresolver
+        services:
+          traefik:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.20:8080"
+
+  dyn_wireguard:
+    content: |
+      http:
+        routers:
+          wireguard:
+            rule: "Host(`wireguard.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: wireguard
+            tls:
+              certResolver: myresolver
+        services:
+          wireguard:
+            loadBalancer:
+              servers:
+                - url: "http://192.168.0.10:51821"
