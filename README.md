@@ -18,7 +18,7 @@ Portainer GitOps repository for two Docker servers.
 
 Managed in Portainer now:
 
-- local: radarr, tautulli, sonarr, plex, watchtower, traefik, minecraft, n8n, gatus
+- local: radarr, tautulli, sonarr, plex, traefik, minecraft, n8n, gatus
 - unraid: wireguard, radarr, sonarr
 
 Unraid stack configs already in git (pending cutover where noted):

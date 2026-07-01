@@ -1,11 +1,35 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "timezone": "Europe/Dublin",
+  "schedule": [
+    "after 2am and before 6am every weekday"
   ],
   "docker-compose": {
     "managerFilePatterns": [
       "/^portainer\\/.*\\/docker-compose\\.ya?ml$/"
     ]
-  }
+  },
+  "packageRules": [
+    {
+      "description": "Auto-merge low-risk updates (digest, pin, patch). These deploy via Portainer GitOps polling once merged.",
+      "matchUpdateTypes": ["digest", "pin", "patch"],
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Group all LinuxServer.io images into one PR to reduce noise.",
+      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\//", "/^ghcr\\.io\\/linuxserver\\//"],
+      "groupName": "linuxserver images"
+    },
+    {
+      "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["major-update"]
+    }
+  ]
 }
