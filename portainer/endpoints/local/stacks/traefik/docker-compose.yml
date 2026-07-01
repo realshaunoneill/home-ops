@@ -26,6 +26,9 @@ services:
       - "--providers.file.watch=true"
 
       - "--entrypoints.web.address=:80"
+      # Redirect all plain HTTP to HTTPS so bare http:// hostnames don't 404.
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.traefik.address=:8080"
 
