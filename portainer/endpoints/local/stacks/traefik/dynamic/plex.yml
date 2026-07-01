@@ -1,0 +1,24 @@
+http:
+  routers:
+    plex:
+      rule: "Host(`plex.home.shaunoneill.com`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - plex-web-redirect
+      service: plex
+      tls:
+        certResolver: myresolver
+
+  middlewares:
+    plex-web-redirect:
+      redirectRegex:
+        regex: "^https?://([^/]+)/?$"
+        replacement: "https://${1}/web"
+        permanent: true
+
+  services:
+    plex:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.20:32400"

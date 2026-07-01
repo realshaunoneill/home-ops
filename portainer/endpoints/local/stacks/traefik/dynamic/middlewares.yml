@@ -1,0 +1,18 @@
+http:
+  middlewares:
+    default-secure-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+    default-compress:
+      compress: {}
+    default-chain:
+      chain:
+        middlewares:
+          - default-compress
+          - default-secure-headers
