@@ -8,13 +8,12 @@ services:
     environment:
       - TZ=Europe/Dublin
       - GATUS_CONFIG_PATH=/config/config.yaml
-    configs:
-      # Config is embedded inline below so it deploys from the compose file
-      # alone — no repo-relative bind mount (Portainer here can't enable
-      # relative path volumes), while staying fully git-driven.
-      - source: gatus_config
-        target: /config/config.yaml
     volumes:
+      # Monitor definitions are versioned in git next to this compose file.
+      # Requires the stack to be created in Portainer with "Enable relative
+      # path volumes" turned on, so the repo is checked out onto the host and
+      # ./config resolves to the real folder (not an empty auto-created dir).
+      - ./config:/config:ro
       # Persist uptime history across restarts.
       - /opt/gatus/data:/data
     ports:
@@ -30,97 +29,6 @@ services:
     networks:
       - proxy
       - default
-
-configs:
-  gatus_config:
-    content: |
-      # Gatus monitoring config — versioned in git (inline in docker-compose.yml).
-      # Docs: https://github.com/TwiN/gatus
-      #
-      # Endpoints are probed through their public Traefik hostnames so each check
-      # also validates routing + TLS. Hosts that aren't 200-on-root (dashboards
-      # that redirect or require auth) use a < 400 condition instead of == 200.
-      storage:
-        type: sqlite
-        path: /data/data.db
-      endpoints:
-        # --- Media ---
-        - name: plex
-          group: media
-          url: https://plex.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-            - "[CERTIFICATE_EXPIRATION] > 168h"
-        - name: tautulli
-          group: media
-          url: https://tautulli.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: radarr
-          group: media
-          url: https://radarr.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: sonarr
-          group: media
-          url: https://sonarr.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: bazarr
-          group: media
-          url: https://bazarr.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: prowlarr
-          group: media
-          url: https://prowlarr.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: nzbget
-          group: media
-          url: https://nzbget.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        # --- Apps & automation ---
-        - name: n8n
-          group: apps
-          url: https://n8n.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-            - "[CERTIFICATE_EXPIRATION] > 168h"
-        - name: home-assistant
-          group: apps
-          url: https://home.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        # --- Infrastructure ---
-        - name: traefik-dashboard
-          group: infra
-          url: https://traefik.home.shaunoneill.com
-          interval: 60s
-          conditions:
-            - "[STATUS] < 400"
-        - name: proxmox
-          group: infra
-          url: https://proxmox.home.shaunoneill.com
-          interval: 120s
-          conditions:
-            - "[STATUS] < 400"
-        - name: wireguard-ui
-          group: infra
-          url: https://wireguard.home.shaunoneill.com
-          interval: 120s
-          conditions:
-            - "[STATUS] < 400"
 
 networks:
   proxy:
