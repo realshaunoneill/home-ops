@@ -9,6 +9,10 @@ services:
     environment:
       - WG_HOST=local.home.shaunoneill.com
       - PASSWORD_HASH=${PASSWORD_HASH}
+      # Unraid bridges its NIC as br0; wg-easy defaults its NAT masquerade to
+      # eth0, which is NOT the default-route interface, so VPN->internet traffic
+      # was never NATed. Force the correct WAN interface.
+      - WG_DEVICE=br0
       - WG_PORT=51820
       # LAN resolver (router) so VPN clients resolve internal *.home.shaunoneill.com
       # via the same working LAN route, not dependent on WAN NAT out of the tunnel.
