@@ -14,8 +14,11 @@ http:
     plex-web-redirect:
       redirectRegex:
         regex: "^https?://([^/]+)/?$"
-        replacement: "https://${1}/web"
-        permanent: true
+        # Land directly in the web app with bypass=1 so it talks straight to this
+        # server and skips the plex.tv discovery round-trip (useful on networks
+        # that block plex.tv). Temporary (302) so browsers don't cache it hard.
+        replacement: "https://${1}/web/index.html#!/?bypass=1"
+        permanent: false
 
   services:
     plex:
