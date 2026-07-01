@@ -15,7 +15,7 @@ it with `--providers.file.watch=true`, so edits are picked up live.
 
 - `middlewares.yml`: shared middleware definitions.
 - `tls-options.yml`: shared TLS options.
-- `bazarr.yml`, `homeassistant.yml`, `radarr-sonarr.yml`, `nzbget.yml`, `clawdbot.yml`, `plex.yml`, `prowlarr.yml`, `proxmox.yml`, `traefik-dashboard.yml`, `wireguard.yml`: per-host routes.
+- `bazarr.yml`, `homeassistant.yml`, `radarr-sonarr.yml`, `nzbget.yml`, `clawdbot.yml`, `plex.yml`, `prowlarr.yml`, `proxmox.yml`, `traefik-dashboard.yml`, `wireguard.yml`, `unraid.yml`: per-host routes.
 
 ## Notes
 
