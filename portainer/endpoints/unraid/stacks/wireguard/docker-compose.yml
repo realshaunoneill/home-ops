@@ -14,9 +14,10 @@ services:
       # was never NATed. Force the correct WAN interface.
       - WG_DEVICE=br0
       - WG_PORT=51820
-      # LAN resolver (router) so VPN clients resolve internal *.home.shaunoneill.com
-      # via the same working LAN route, not dependent on WAN NAT out of the tunnel.
-      - WG_DEFAULT_DNS=192.168.0.1
+      # AdGuard Home (on the local host) so VPN clients get network-wide ad/tracker
+      # blocking and resolve internal *.home.shaunoneill.com via a LAN resolver,
+      # not dependent on WAN NAT out of the tunnel.
+      - WG_DEFAULT_DNS=192.168.0.20
       - WG_ALLOWED_IPS=0.0.0.0/0,::/0
       - WG_PERSISTENT_KEEPALIVE=25
 

@@ -111,8 +111,9 @@ off, so image digests don't silently update).
     fails). Verify: `iptables -t nat -S POSTROUTING` shows
     `-s 10.8.0.0/24 -o br0 -j MASQUERADE`.
   - `WG_DEFAULT_DNS` only stamps **newly generated** client configs — regenerate
-    a client after changing it. Set to `192.168.0.1` (router) so VPN clients
-    resolve internal names via a LAN resolver rather than depending on WAN NAT.
+    a client after changing it. Set to `192.168.0.20` (AdGuard Home) so VPN
+    clients get ad-blocking and resolve internal names via a LAN resolver rather
+    than depending on WAN NAT.
   - Endpoint is `local.home.shaunoneill.com:51820` → WAN IP; port 51820/udp is
     forwarded. VPN subnet is `10.8.0.0/24`.
 - **AdGuard Home** (LOCAL host `192.168.0.20`, `network_mode: host`, DNS :53, UI
