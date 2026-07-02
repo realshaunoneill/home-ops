@@ -35,6 +35,11 @@ router/gateway `192.168.0.1`, proxmox `192.168.0.200`, home-assistant
   redeploys, needs no Portainer feature. Traefik and (previously) Gatus use this.
   - Gotcha: Compose interpolates `${...}` in `configs.content`, so literal `$`
     must be doubled to `$$` (see the plex regex in the traefik compose).
+  - Gotcha: Portainer "Pull and redeploy" (and the git-redeploy API, even with
+    `forceUpdate`) may NOT recreate the container when only inline `configs:`
+    content changed — it updates the checkout but leaves the old container. If a
+    config change doesn't take effect, force it on the host:
+    `cd <checkout>/.../traefik && CF_DNS_API_TOKEN=<tok> docker compose -p traefik up -d --force-recreate`.
 - Host-path volumes (`/opt/...`, `/mnt/user/...`) are fine anywhere and need no
   special setting — most stacks only use these.
 - **"Pull and redeploy"** applies compose/inline-config changes. Static Traefik
