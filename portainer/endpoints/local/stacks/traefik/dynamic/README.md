@@ -1,30 +1,33 @@
-# Traefik Dynamic Config
+# Traefik Dynamic Config — now inline
 
-This folder is mounted into the Traefik container at `/etc/traefik/dynamic` via
-the `./dynamic` bind mount in the stack's `docker-compose.yml`. Traefik watches
-it with `--providers.file.watch=true`, so edits are picked up live.
+> **These route files were moved inline into the Traefik stack's
+> `docker-compose.yml`** as Docker `configs:` blocks (each mounted to
+> `/etc/traefik/dynamic/<name>.yml`). This folder now only holds this README.
 
-> **Requires relative path volumes.** This stack is deployed from git via
-> Portainer. For the `./dynamic` bind mount to resolve to these files (rather
-> than an empty auto-created directory), the stack must be created with
-> **"Enable relative path volumes"** turned on (Advanced configuration on the
-> stack create form). If that option is unavailable, embed the config inline in
-> `docker-compose.yml` via `configs:` blocks instead.
+## Why inline instead of a `./dynamic` bind mount
 
-## Files
+This stack is deployed from git via Portainer. A repo-relative bind mount
+(`./dynamic:/etc/traefik/dynamic`) requires Portainer's **relative path
+volumes** (a Business Edition feature — available on this instance). It *works*,
+but on every **redeploy** Portainer creates a fresh checkout directory and the
+running container stayed bound to the **old** path — leaving `/etc/traefik/dynamic`
+dangling/empty until a manual `docker restart` re-bound it. This happened
+repeatedly and broke all file-provider routes (and blocked cert issuance) each
+redeploy.
 
-- `middlewares.yml`: shared middleware definitions.
-- `tls-options.yml`: shared TLS options.
-- `bazarr.yml`, `homeassistant.yml`, `radarr-sonarr.yml`, `nzbget.yml`, `clawdbot.yml`, `plex.yml`, `prowlarr.yml`, `proxmox.yml`, `traefik-dashboard.yml`, `wireguard.yml`, `unraid.yml`, `adguard.yml`: per-host routes.
+Embedding the config as `configs:` blocks in the compose file removes the
+relative mount entirely: the content travels *inside* the compose Portainer
+already delivers reliably, so redeploys are self-contained and safe.
 
-## Notes
+## How to change a route
 
-- If a host is also defined by docker labels on a running container, Traefik
-  will have multiple routers for the same rule. Keep one source of truth per
-  hostname.
-- Example label usage from app stacks:
+1. Edit the relevant `dyn_*` config block in `../docker-compose.yml`
+   (the top-level `configs:` section).
+2. Commit and push.
+3. Pull & redeploy the `traefik` stack in Portainer.
 
-```yaml
-labels:
-  - "traefik.http.routers.myapp.middlewares=default-chain@file"
-```
+## Gotcha: escaping `$`
+
+Compose interpolates `${...}` in config content, so any literal `$` must be
+doubled to `$$`. Example: the plex redirect regex backreference is written
+`$${1}` (and the end-anchor `$$`) so Traefik receives `${1}` / `$`.
