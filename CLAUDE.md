@@ -8,8 +8,8 @@ deploys them directly from this repo (public GitHub: `realshaunoneill/home-ops`)
 
 | Endpoint | Portainer ID | Host / connection | Runs |
 |---|---:|---|---|
-| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus |
-| `unraid` | 4 | Portainer agent on `192.168.0.10` (`tcp`, signed requests) | radarr, sonarr, bazarr, prowlarr, nzbget, transmission, wireguard, adguard |
+| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus, adguard |
+| `unraid` | 4 | Portainer agent on `192.168.0.10` (`tcp`, signed requests) | radarr, sonarr, bazarr, prowlarr, nzbget, transmission, wireguard |
 
 Stack names can overlap across endpoints — **always use the endpoint path** when
 editing (e.g. radarr existed on both historically). Repo layout:
@@ -110,12 +110,17 @@ off, so image digests don't silently update).
     resolve internal names via a LAN resolver rather than depending on WAN NAT.
   - Endpoint is `local.home.shaunoneill.com:51820` → WAN IP; port 51820/udp is
     forwarded. VPN subnet is `10.8.0.0/24`.
-- **AdGuard Home** (unraid, `network_mode: host`, DNS :53, UI :3000): intended as
-  a network-wide resolver. Can host **DNS rewrites** `*.home.shaunoneill.com →
-  192.168.0.20` for clean split-horizon (internal names resolve locally, don't
-  leak to public DNS). Point WireGuard `WG_DEFAULT_DNS` and/or router DHCP DNS at
-  it (`192.168.0.10`) once set up. AdGuard writes its own config after the
-  first-run wizard — not repo-driven; only host-path volumes are versioned.
+- **AdGuard Home** (LOCAL host `192.168.0.20`, `network_mode: host`, DNS :53, UI
+  :3000): intended as a network-wide resolver. Runs on local, NOT unraid — the
+  unraid host already had something bound to `0.0.0.0:53` (deploy failed with
+  `bind: address already in use`); on local, systemd-resolved only holds the
+  loopback `127.0.0.53`, so `0.0.0.0:53` is free. If AdGuard still can't bind
+  :53 on local, set `DNSStubListener=no` in `/etc/systemd/resolved.conf`.
+  Can host **DNS rewrites** `*.home.shaunoneill.com → 192.168.0.20` for clean
+  split-horizon (internal names resolve locally, don't leak to public DNS).
+  Point WireGuard `WG_DEFAULT_DNS` and/or router DHCP DNS at it (`192.168.0.20`)
+  once set up. AdGuard writes its own config after the first-run wizard — not
+  repo-driven; only host-path volumes are versioned.
 
 ## Version pinning / Renovate
 

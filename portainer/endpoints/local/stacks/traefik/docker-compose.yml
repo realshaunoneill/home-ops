@@ -119,9 +119,9 @@ configs:
           adguard:
             loadBalancer:
               servers:
-                # AdGuard Home admin UI (first-run wizard listens on :3000;
-                # keep the admin port at 3000 so this stays valid).
-                - url: "http://192.168.0.10:3000"
+                # AdGuard Home admin UI on the local host (first-run wizard
+                # listens on :3000; keep the admin port at 3000 so this stays valid).
+                - url: "http://192.168.0.20:3000"
 
   dyn_bazarr:
     content: |

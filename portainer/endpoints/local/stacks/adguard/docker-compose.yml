@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+
+    # Host networking so AdGuard can serve DNS on :53 cleanly and see real
+    # client IPs. Runs on the local host (192.168.0.20), where only loopback
+    # 127.0.0.53 is held by systemd-resolved, so 0.0.0.0:53 is free (unraid's
+    # host already had something on :53). Web UI via Traefik (adguard route)
+    # or directly at http://192.168.0.20:3000.
+    network_mode: host
+
+    volumes:
+      - /opt/adguard/work:/opt/adguardhome/work
+      - /opt/adguard/conf:/opt/adguardhome/conf
