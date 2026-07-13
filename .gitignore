@@ -3,3 +3,7 @@
 .env
 **/.env
 !**/.env.example
+
+# Claude Code local project notes (may contain secrets/tokens). The tracked
+# CLAUDE.md is the shared version.
+CLAUDE.local.md
