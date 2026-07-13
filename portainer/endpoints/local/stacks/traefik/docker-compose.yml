@@ -34,6 +34,14 @@ services:
 
       - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
       - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=cloudflare"
+      # Because *.home.shaunoneill.com wildcards CNAME to home.shaunoneill.com,
+      # lego follows the CNAME and writes the challenge TXT at the apex. The
+      # default pre-propagation check polls Docker's embedded resolver
+      # (127.0.0.11) which chains through AdGuard/systemd-resolved and can
+      # cache/miss the fresh TXT, causing cert issuance to time out. Pointing
+      # the pre-check at Cloudflare's public resolvers (authoritative on this
+      # zone) sees the write immediately and unblocks issuance.
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53"
       - "--certificatesresolvers.myresolver.acme.email=you@shaunoneill.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
 
