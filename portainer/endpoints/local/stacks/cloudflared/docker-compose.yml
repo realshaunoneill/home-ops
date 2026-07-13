@@ -14,9 +14,11 @@ version: "3.8"
 
 services:
   cloudflared:
-    # Cloudflare publishes the same connector image to GHCR; prefer it over
-    # Docker Hub so we avoid Docker Hub's anonymous pull limits.
-    image: ghcr.io/cloudflare/cloudflared:latest
+    # Cloudflare only publishes the connector to Docker Hub (GHCR path is not
+    # public). Version tags mirror the upstream GitHub releases at
+    # https://github.com/cloudflare/cloudflared/releases — pinning to an
+    # explicit version lets Renovate propose clean version bumps.
+    image: cloudflare/cloudflared:2026.7.1
     # `cloudflared` is already taken by an unrelated personal-project container
     # on this host, so this one is scoped to the home-ops tunnel.
     container_name: cloudflared-home
