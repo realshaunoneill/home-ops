@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest@sha256:aaaa087af75a73b7ac765dcc5d748874cfafdb93c23ec9f64fbb481dea291b23
+    image: lscr.io/linuxserver/bazarr:latest@sha256:5d916d07404296ec35ee726e13e0e558f05952724cf494a7f009d913fb2b12f3
     container_name: bazarr
     restart: unless-stopped
     environment:
