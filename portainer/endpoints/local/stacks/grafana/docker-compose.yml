@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    restart: unless-stopped
+
+    environment:
+      - TZ=Europe/Dublin
+
+      # Admin bootstrap — set in Portainer stack env (do NOT commit).
+      # If unset on first boot, Grafana defaults to admin/admin.
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+
+      # Correct external URL so share links / redirects work behind Traefik.
+      - GF_SERVER_ROOT_URL=https://grafana.home.shaunoneill.com
+      - GF_SERVER_DOMAIN=grafana.home.shaunoneill.com
+
+      # Lock down: no self-signup, no anonymous access.
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+
+      # Kill telemetry / update pings.
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_FEEDBACK_LINKS_ENABLED=false
+
+    volumes:
+      # Persist sqlite DB, plugins, and any UI-created dashboards across
+      # redeploys. Directory must be owned by UID 472 (grafana) on the host:
+      #   sudo mkdir -p /opt/grafana/data && sudo chown -R 472:472 /opt/grafana
+      - /opt/grafana/data:/var/lib/grafana
+
+    # Inline provisioning — versioned in git. Add datasources / dashboards
+    # here and pull-and-redeploy; Grafana picks them up on start. Uses the
+    # same inline `configs:` pattern as the traefik stack (self-contained,
+    # survives redeploys, no relative-path bind mounts).
+    configs:
+      - source: gf_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yml
+
+    ports:
+      # Direct access at http://<host>:3001 — bypasses Traefik for debugging.
+      # Host :3000 is taken by AdGuard's web UI (network_mode: host).
+      - "3001:3000"
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.home.shaunoneill.com`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+    networks:
+      - proxy
+      - default
+
+networks:
+  proxy:
+    external: true
+
+configs:
+  # Datasource provisioning. Nothing is enabled by default (no Prometheus in
+  # this repo yet). To wire one up: uncomment a block below, commit, and
+  # pull-and-redeploy the stack. Docs:
+  # https://grafana.com/docs/grafana/latest/administration/provisioning/#data-sources
+  gf_datasources:
+    content: |
+      apiVersion: 1
+      datasources: []
+      # Example — add Prometheus once it's running:
+      # - name: Prometheus
+      #   type: prometheus
+      #   access: proxy
+      #   url: http://prometheus:9090
+      #   isDefault: true
+      #   editable: false
