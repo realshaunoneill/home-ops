@@ -15,7 +15,9 @@ version: "3.8"
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared
+    # `cloudflared` is already taken by an unrelated personal-project container
+    # on this host, so this one is scoped to the home-ops tunnel.
+    container_name: cloudflared-home
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
     environment:
