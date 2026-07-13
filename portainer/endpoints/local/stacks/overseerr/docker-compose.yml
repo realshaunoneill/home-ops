@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Dublin
+    ports:
+      - "5055:5055" # Direct LAN access (optional; Traefik + Tunnel also route to :5055)
+    volumes:
+      - /opt/overseerr/config:/config
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.overseerr.rule=Host(`overseerr.home.shaunoneill.com`)"
+      - "traefik.http.routers.overseerr.entrypoints=websecure"
+      - "traefik.http.routers.overseerr.tls.certresolver=myresolver"
+      - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
+    networks:
+      - proxy
+      - default
+
+networks:
+  proxy:
+    external: true

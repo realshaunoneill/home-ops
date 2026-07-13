@@ -1,0 +1,29 @@
+version: "3.8"
+
+# Cloudflare Tunnel connector (token / remote-managed mode).
+#
+# Public hostnames and ingress rules are configured in the Cloudflare Zero
+# Trust dashboard (Networks -> Tunnels -> <tunnel> -> Public Hostname). This
+# container just runs the connector; no routes are declared here.
+#
+# Because cloudflared is attached to the `proxy` external network, ingress
+# targets can use Docker service DNS, e.g. `http://overseerr:5055`.
+#
+# Access control (email allowlists, etc.) is configured via Cloudflare Access
+# applications in the Zero Trust dashboard.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    environment:
+      - TZ=Europe/Dublin
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
