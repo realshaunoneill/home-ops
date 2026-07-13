@@ -15,7 +15,7 @@ services:
       - internal
 
   n8n:
-    image: n8nio/n8n:latest@sha256:cf11c96b0d0089bb24459bf97b445fd7008f41543b673cce4d955f7c0ed8752d
+    image: n8nio/n8n:latest@sha256:9cb60554716a0ab11a966e79ed65171e1bbf00b6d262ba12aa119bba22eb6000
     container_name: n8n
     restart: unless-stopped
     depends_on:
