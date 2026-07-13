@@ -42,9 +42,10 @@ services:
         target: /etc/grafana/provisioning/datasources/datasources.yml
 
     ports:
-      # Direct access at http://<host>:3001 — bypasses Traefik for debugging.
-      # Host :3000 is taken by AdGuard's web UI (network_mode: host).
-      - "3001:3000"
+      # Direct access at http://<host>:3300 — bypasses Traefik for debugging.
+      # Host :3000 is taken by AdGuard's web UI, :3001 by an unmanaged
+      # express-api container.
+      - "3300:3000"
 
     labels:
       - "traefik.enable=true"
