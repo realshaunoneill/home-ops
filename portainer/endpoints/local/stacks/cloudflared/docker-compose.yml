@@ -14,7 +14,9 @@ version: "3.8"
 
 services:
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Cloudflare publishes the same connector image to GHCR; prefer it over
+    # Docker Hub so we avoid Docker Hub's anonymous pull limits.
+    image: ghcr.io/cloudflare/cloudflared:latest
     # `cloudflared` is already taken by an unrelated personal-project container
     # on this host, so this one is scoped to the home-ops tunnel.
     container_name: cloudflared-home

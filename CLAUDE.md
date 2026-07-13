@@ -8,7 +8,7 @@ deploys them directly from this repo (public GitHub: `realshaunoneill/home-ops`)
 
 | Endpoint | Portainer ID | Host / connection | Runs |
 |---|---:|---|---|
-| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus, adguard |
+| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus, adguard, grafana, overseerr, cloudflared |
 | `unraid` | 4 | Portainer agent on `192.168.0.10` (`tcp`, signed requests) | radarr, sonarr, bazarr, prowlarr, nzbget, transmission, wireguard |
 
 Stack names can overlap across endpoints — **always use the endpoint path** when
@@ -50,6 +50,7 @@ router/gateway `192.168.0.1`, proxmox `192.168.0.200`, home-assistant
 
 11 stacks have GitOps polling (5m) enabled: bazarr, gatus, n8n, nzbget,
 prowlarr, radarr, sonarr, tautulli, traefik, transmission, wireguard.
+Later additions with GitOps enabled: overseerr, cloudflared.
 **plex is intentionally excluded.** minecraft is not git-backed. A push to
 `master` auto-deploys within ~5 min (compose changes only — "Re-pull image" is
 off, so image digests don't silently update).
@@ -60,7 +61,8 @@ off, so image digests don't silently update).
   variables** in Portainer (or a gitignored `.env`); compose references them as
   `${VAR}`. `.env.example` files document each.
 - Externalized vars: `CF_DNS_API_TOKEN` (traefik), `POSTGRES_PASSWORD` (n8n),
-  `RCON_PASSWORD` (minecraft), `PASSWORD_HASH` (wireguard/wg-easy).
+  `RCON_PASSWORD` (minecraft), `PASSWORD_HASH` (wireguard/wg-easy),
+  `TUNNEL_TOKEN` (cloudflared).
 - **Env-var gotchas:**
   - The Portainer env panel **interpolates `$`** — a raw bcrypt hash like
     `$2a$12$...` gets mangled. For `PASSWORD_HASH`, double every `$`:
@@ -68,6 +70,16 @@ off, so image digests don't silently update).
   - A stored stack env survives redeploys; a value only typed at deploy (not
     saved on the stack) is lost on redeploy/restart. Keep `CF_DNS_API_TOKEN`
     saved on the traefik stack env.
+  - **Portainer API `PUT /api/stacks/{id}/git/redeploy` WIPES the stored stack
+    env** unless the request body re-supplies it as
+    `env: [{name, value}, ...]`. The UI "Pull and redeploy" button preserves
+    env; the API does not. Symptom: after an API redeploy, containers come up
+    with empty `${VAR}` values (`CLOUDFLARE_DNS_API_TOKEN` missing on Traefik,
+    tunnel connector unauthenticated on cloudflared, etc.). Fix: GET the
+    stack's `Env` first, then include the same array in the redeploy PUT.
+    Saved env vars currently in play: `CF_DNS_API_TOKEN` (traefik, stack 47),
+    `TUNNEL_TOKEN` (cloudflared, stack 56), `POSTGRES_PASSWORD` (n8n, stack
+    37), `PASSWORD_HASH` (wireguard, stack 30).
 - History was scrubbed (git-filter-repo) before going public; old committed
   Cloudflare creds were verified **revoked/invalid**. `master` is clean. GitHub
   `refs/pull/*` may still hold old (dead) values — low risk.
@@ -103,6 +115,15 @@ off, so image digests don't silently update).
   `_acme-challenge` TXT records** (from failed attempts) cause Cloudflare error
   `81058: identical record already exists` and block ALL cert issuance until the
   stale TXT is deleted from the Cloudflare zone.
+- lego's default DNS-01 pre-propagation check polls Docker's embedded resolver
+  (`127.0.0.11`), which chains through AdGuard / systemd-resolved and can miss
+  freshly-written TXT records — every new-host cert then times out with
+  `did not return the expected TXT record` (existing certs keep working from
+  ACME cache, so the problem is invisible until you add a new hostname). Fixed
+  by pinning the pre-check resolvers to Cloudflare's own auth in
+  `traefik/docker-compose.yml`:
+  `--certificatesresolvers.myresolver.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53`.
+  Do not remove that flag.
 - **WireGuard (wg-easy on unraid, `network_mode: host`):**
   - Unraid bridges its NIC as **`br0`**, but wg-easy defaults its NAT masquerade
     to `eth0` — the wrong interface — so VPN→internet traffic was never NATed.
@@ -127,6 +148,23 @@ off, so image digests don't silently update).
   Point WireGuard `WG_DEFAULT_DNS` and/or router DHCP DNS at it (`192.168.0.20`)
   once set up. AdGuard writes its own config after the first-run wizard — not
   repo-driven; only host-path volumes are versioned.
+
+## Cloudflare Tunnel (cloudflared)
+
+- Stack `cloudflared` on local (id 56) runs `ghcr.io/cloudflare/cloudflared`
+  as container `cloudflared-home` (the name `cloudflared` is already taken by
+  an unrelated `maptoposter` project on this host).
+- **Token mode** — routes and public hostnames are managed in the Cloudflare
+  Zero Trust dashboard (Networks → Tunnels), NOT in this repo. Only
+  `TUNNEL_TOKEN` lives in the stack env in Portainer.
+- Container is on the `proxy` external network so ingress targets can use
+  Docker service DNS (e.g. tunnel routes to `http://overseerr:5055`).
+- **Cloudflare Access** gates external hostnames (email allowlist per app);
+  configured under Zero Trust → Access → Applications. LAN routes via Traefik
+  (e.g. `overseerr.home.shaunoneill.com`) **bypass** Access by design.
+- Rotating the connector token: create/refresh in CF dashboard, save the new
+  value on the stack's Env in Portainer, redeploy (remember: API redeploy
+  needs env re-supplied).
 
 ## Version pinning / Renovate
 
