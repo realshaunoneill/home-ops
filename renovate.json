@@ -26,6 +26,18 @@
       "groupName": "linuxserver images"
     },
     {
+      "description": "Auto-merge minor updates for LinuxServer.io images (app version bumps like Radarr 6.2 -> 6.3). The group's digest/patch updates are already covered by the low-risk rule above; this extends automerge to minor so mixed digest+minor groups don't block.",
+      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\//", "/^ghcr\\.io\\/linuxserver\\//"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Keep Plex bumps manual — plex is intentionally excluded from Portainer GitOps polling (see CLAUDE.md), so we want to control when its image is updated in the repo. Overrides the generic and linuxserver automerge rules above.",
+      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\/plex$/"],
+      "automerge": false
+    },
+    {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
