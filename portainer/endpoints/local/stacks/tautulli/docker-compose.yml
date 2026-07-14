@@ -15,6 +15,11 @@ services:
       - /opt/tautulli/config:/config # Persistent config directory
     labels:
       - "traefik.enable=true"
+      # Pin the network Traefik uses to reach this container. Without this,
+      # when a container is on multiple networks Traefik's docker provider
+      # sometimes picks the non-`proxy` IP and every request hangs at the
+      # backend hop until it times out (Traefik itself only lives on `proxy`).
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.tautulli.rule=Host(`tautulli.home.shaunoneill.com`)"
       - "traefik.http.routers.tautulli.entrypoints=websecure"
       - "traefik.http.routers.tautulli.tls.certresolver=myresolver"
