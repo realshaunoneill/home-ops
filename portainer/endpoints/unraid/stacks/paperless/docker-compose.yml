@@ -1,0 +1,98 @@
+version: "3.8"
+
+# Paperless-ngx — self-hosted document management with OCR, tagging, full-text
+# search. Backend: Postgres + Redis. Companion services (gotenberg + tika) let
+# it consume Office docs / emails in addition to PDFs / images.
+#
+# Web UI: https://paperless.home.shaunoneill.com  (Traefik route on the local
+# host — see traefik stack). Direct LAN: http://192.168.0.10:8010
+#
+# Drop files into /mnt/user/documents/paperless/consume on unraid and they
+# will be auto-imported.
+
+services:
+  broker:
+    image: docker.io/library/redis:7-alpine
+    container_name: paperless-redis
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: docker.io/library/postgres:16
+    container_name: paperless-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  gotenberg:
+    image: docker.io/gotenberg/gotenberg:8.24
+    container_name: paperless-gotenberg
+    restart: unless-stopped
+    # The gotenberg chromium API is used by paperless to convert Office /
+    # e-mail attachments to PDF. Disable JS to reduce attack surface and
+    # allow only file:// so it can render local temp files.
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+
+  tika:
+    image: docker.io/apache/tika:3.2.3.0
+    container_name: paperless-tika
+    restart: unless-stopped
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.20.15
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+      - gotenberg
+      - tika
+    ports:
+      - "8010:8000"
+    volumes:
+      # Config, database migrations, search index.
+      - /mnt/user/appdata/paperless/data:/usr/src/paperless/data
+      # Where the archived / processed originals live — put on the array.
+      - /mnt/user/documents/paperless/media:/usr/src/paperless/media
+      # Export target for `document_exporter` runs.
+      - /mnt/user/documents/paperless/export:/usr/src/paperless/export
+      # Drop files here to auto-import.
+      - /mnt/user/documents/paperless/consume:/usr/src/paperless/consume
+    environment:
+      # Redis broker
+      PAPERLESS_REDIS: redis://broker:6379
+      # Postgres backend
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${POSTGRES_PASSWORD}
+      # Django secret used for sessions / crypto — keep stable and secret.
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      # Behind Traefik on HTTPS.
+      PAPERLESS_URL: https://paperless.home.shaunoneill.com
+      PAPERLESS_TIME_ZONE: Europe/Dublin
+      PAPERLESS_OCR_LANGUAGE: eng
+      # Tika / gotenberg for Office + email support.
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+      # Bootstrap superuser on first run. After first login change the password
+      # via the web UI; changing the env later has no effect.
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD}
+      # Run as the unraid share owner so files land with sane perms.
+      USERMAP_UID: 99
+      USERMAP_GID: 100
+      TZ: Europe/Dublin
+
+volumes:
+  pgdata:
+  redisdata:

@@ -66,7 +66,9 @@ services:
       - { source: dyn_bazarr, target: /etc/traefik/dynamic/bazarr.yml }
       - { source: dyn_clawdbot, target: /etc/traefik/dynamic/clawdbot.yml }
       - { source: dyn_homeassistant, target: /etc/traefik/dynamic/homeassistant.yml }
+      - { source: dyn_immich, target: /etc/traefik/dynamic/immich.yml }
       - { source: dyn_nzbget, target: /etc/traefik/dynamic/nzbget.yml }
+      - { source: dyn_paperless, target: /etc/traefik/dynamic/paperless.yml }
       - { source: dyn_plex, target: /etc/traefik/dynamic/plex.yml }
       - { source: dyn_prowlarr, target: /etc/traefik/dynamic/prowlarr.yml }
       - { source: dyn_proxmox, target: /etc/traefik/dynamic/proxmox.yml }
@@ -182,6 +184,24 @@ configs:
               servers:
                 - url: "http://192.168.0.245:8123"
 
+  dyn_immich:
+    content: |
+      http:
+        routers:
+          immich:
+            rule: "Host(`immich.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: immich
+            tls:
+              certResolver: myresolver
+        services:
+          immich:
+            loadBalancer:
+              servers:
+                # Immich web + API on unraid (v3 exposes port 2283).
+                - url: "http://192.168.0.10:2283"
+
   dyn_nzbget:
     content: |
       http:
@@ -198,6 +218,24 @@ configs:
             loadBalancer:
               servers:
                 - url: "http://192.168.0.10:6789"
+
+  dyn_paperless:
+    content: |
+      http:
+        routers:
+          paperless:
+            rule: "Host(`paperless.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            service: paperless
+            tls:
+              certResolver: myresolver
+        services:
+          paperless:
+            loadBalancer:
+              servers:
+                # Paperless-ngx webserver on unraid (host port 8010).
+                - url: "http://192.168.0.10:8010"
 
   dyn_plex:
     content: |
