@@ -32,6 +32,11 @@ services:
       # redeploys. Directory must be owned by UID 472 (grafana) on the host:
       #   sudo mkdir -p /opt/grafana/data && sudo chown -R 472:472 /opt/grafana
       - /opt/grafana/data:/var/lib/grafana
+      # Versioned dashboards from ./dashboards/*.json. Relative-path bind
+      # mounts require the stack to have been created with "Enable relative
+      # path volumes" turned on (SupportRelativePath=true, FilesystemPath=
+      # /opt/grafana/repo). See the gatus stack for the same pattern.
+      - ./dashboards:/etc/grafana/dashboards:ro
 
     # Inline provisioning — versioned in git. Add datasources / dashboards
     # here and pull-and-redeploy; Grafana picks them up on start. Uses the
@@ -40,6 +45,8 @@ services:
     configs:
       - source: gf_datasources
         target: /etc/grafana/provisioning/datasources/datasources.yml
+      - source: gf_dashboards_provider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
 
     ports:
       # Direct access at http://<host>:3300 — bypasses Traefik for debugging.
@@ -82,3 +89,21 @@ configs:
           jsonData:
             timeInterval: 30s
             httpMethod: POST
+
+  # Dashboard provider — Grafana watches /etc/grafana/dashboards/*.json and
+  # imports/updates them on start (and every 30s if allowUiUpdates=false).
+  # https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards
+  gf_dashboards_provider:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: home-ops
+          orgId: 1
+          folder: home-ops
+          type: file
+          disableDeletion: false
+          allowUiUpdates: true
+          updateIntervalSeconds: 30
+          options:
+            path: /etc/grafana/dashboards
+            foldersFromFilesStructure: false
