@@ -16,7 +16,12 @@ services:
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker|mnt/user0|mnt/addons|mnt/rootshare)($$|/)"
 
     volumes:
-      - /:/host:ro,rslave
+      # Unraid's root FS isn't propagation-shared, so the usual `rslave`
+      # option that Prometheus docs suggest fails with:
+      #   "path / is mounted on / but it is not a shared or slave mount"
+      # Plain :ro is enough — we only lose visibility into mounts that
+      # appear after node_exporter starts, which is fine here.
+      - /:/host:ro
 
     # Published so Prometheus on the local endpoint can scrape
     # 192.168.0.10:9100/metrics across hosts.
