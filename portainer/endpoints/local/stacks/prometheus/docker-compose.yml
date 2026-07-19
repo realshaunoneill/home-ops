@@ -83,8 +83,12 @@ configs:
             - targets: ['gatus:8080']
 
         # onedr0p/exportarr — one container per *arr app, all on port 9707.
-        # Labels give per-app slicing without needing separate jobs.
+        # Labels give per-app slicing without needing separate jobs. Bumped
+        # timeouts because bazarr fetches subtitle metadata on each scrape
+        # and can take 15-20s; default 10s scrape_timeout was killing it.
         - job_name: exportarr
+          scrape_interval: 60s
+          scrape_timeout: 30s
           static_configs:
             - targets: ['exportarr-radarr:9707']
               labels: { app: radarr }
