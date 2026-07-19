@@ -183,7 +183,7 @@
       },
       "id": 4,
       "options": {
-        "content": "# Home Ops Dashboard Index\n\nUse these links for quick navigation:\n\n- [Homelab Service Health](/d/homelab-service-health)\n- [Media Apps Quick Health](/d/media-apps-quick-health)\n- [Node Exporter Full](/d/rYdddlPWk)\n- [Cadvisor Exporter](/d/pMEd7m0Mz)\n- [Traefik Official Dashboard](/d/n5bu_kv45)\n- [Radarr v3](/d/F2vfZUNGz)\n- [Sonarr v3](/d/vGjT_QWMk)\n- [Prowlarr](/d/oWe9aYxml)\n\nProxmox health is shown on the left from Gatus checks.",
+        "content": "# Home Ops Dashboard Index\n\nUse these links for quick navigation:\n\n- [Homelab Service Health](/d/homelab-service-health)\n- [Media Apps Quick Health](/d/media-apps-quick-health)\n- [Proxmox Deep Dive](/d/proxmox-deep-dive)\n- [Node Exporter Full](/d/rYdddlPWk)\n- [Cadvisor Exporter](/d/pMEd7m0Mz)\n- [Traefik Official Dashboard](/d/n5bu_kv45)\n- [Radarr v3](/d/F2vfZUNGz)\n- [Sonarr v3](/d/vGjT_QWMk)\n- [Prowlarr](/d/oWe9aYxml)\n\nProxmox health is shown on the left from Gatus checks.",
         "mode": "markdown"
       },
       "pluginVersion": "11.3.0",

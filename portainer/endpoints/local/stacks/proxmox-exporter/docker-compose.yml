@@ -1,0 +1,25 @@
+version: "3.8"
+
+# Prometheus exporter for Proxmox VE metrics.
+# Uses token auth via stack env vars and exposes HTTP on :9221.
+# Prometheus scrapes this exporter via /pve with target=192.168.0.200:8006.
+
+services:
+  proxmox-exporter:
+    image: prompve/prometheus-pve-exporter:v3.9.0
+    container_name: proxmox-exporter
+    restart: unless-stopped
+
+    environment:
+      - TZ=Europe/Dublin
+      - PVE_USER=${PVE_USER}
+      - PVE_TOKEN_NAME=${PVE_TOKEN_NAME}
+      - PVE_TOKEN_VALUE=${PVE_TOKEN_VALUE}
+      - PVE_VERIFY_SSL=${PVE_VERIFY_SSL:-false}
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

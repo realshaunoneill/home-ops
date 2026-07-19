@@ -87,6 +87,25 @@ configs:
           static_configs:
             - targets: ['cloudflared:2000']
 
+        # Proxmox VE deep metrics via prometheus-pve-exporter.
+        # Exporter runs in docker as proxmox-exporter:9221 and scrapes the
+        # Proxmox API target over TLS with token auth.
+        - job_name: proxmox-pve
+          metrics_path: /pve
+          params:
+            module: ['default']
+            cluster: ['1']
+            node: ['1']
+          static_configs:
+            - targets: ['192.168.0.200:8006']
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: proxmox-exporter:9221
+
         # Home Assistant native Prometheus endpoint. Requires the Prometheus
         # integration enabled in HA and a long-lived access token.
         - job_name: homeassistant
