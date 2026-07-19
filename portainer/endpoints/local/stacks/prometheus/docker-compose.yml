@@ -99,10 +99,6 @@ configs:
           static_configs:
             - targets: ['plex-exporter:9000']
 
-        - job_name: tautulli
-          static_configs:
-            - targets: ['tautulli-exporter:9487']
-
         - job_name: n8n
           static_configs:
             - targets: ['n8n:5678']

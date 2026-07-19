@@ -14,9 +14,9 @@ services:
     restart: unless-stopped
 
     environment:
-      # Plex is on the local host at :32400 (Plex uses host networking
-      # historically; here it's a container we reach via LAN IP).
-      - PLEX_ADDRESS=http://192.168.0.20:32400
+      # Plex is on the local host at :32400. jsclayton/prometheus-plex-exporter
+      # expects PLEX_SERVER (URL) and PLEX_TOKEN.
+      - PLEX_SERVER=http://192.168.0.20:32400
       - PLEX_TOKEN=${PLEX_TOKEN}
 
     networks:
