@@ -1,0 +1,22 @@
+version: "3.8"
+
+# Prometheus exporter for Tautulli. Reaches Tautulli via LAN IP + its API
+# key. The api_key value lives in Tautulli's /config/config.ini under
+# [General]; set it as TAUTULLI_API_KEY in the Portainer stack env.
+
+services:
+  tautulli-exporter:
+    image: ghcr.io/pauln/tautulli-exporter:latest
+    container_name: tautulli-exporter
+    restart: unless-stopped
+
+    environment:
+      - TAUTULLI_URI=http://192.168.0.20:8181
+      - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

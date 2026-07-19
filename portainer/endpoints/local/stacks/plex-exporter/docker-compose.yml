@@ -1,0 +1,27 @@
+version: "3.8"
+
+# Prometheus exporter for Plex Media Server.
+# Uses jsclayton/prometheus-plex-exporter, which needs a token from Plex.
+# The token lives in Plex's Preferences.xml as PlexOnlineToken; set it as
+# PLEX_TOKEN in the Portainer stack env.
+#
+# Prometheus reaches this by container name at http://plex-exporter:9000/metrics.
+
+services:
+  plex-exporter:
+    image: ghcr.io/jsclayton/prometheus-plex-exporter:latest
+    container_name: plex-exporter
+    restart: unless-stopped
+
+    environment:
+      # Plex is on the local host at :32400 (Plex uses host networking
+      # historically; here it's a container we reach via LAN IP).
+      - PLEX_ADDRESS=http://192.168.0.20:32400
+      - PLEX_TOKEN=${PLEX_TOKEN}
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

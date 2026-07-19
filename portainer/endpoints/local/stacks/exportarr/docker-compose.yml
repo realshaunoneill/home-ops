@@ -1,0 +1,62 @@
+version: "3.8"
+
+# Prometheus exporters for the *arr suite (Radarr, Sonarr, Prowlarr, Bazarr).
+# Each container speaks HTTP to its target on unraid (192.168.0.10) using the
+# per-app API key from Portainer env vars. Prometheus scrapes each container
+# by name over the `proxy` docker network at :9707.
+#
+# Deploy: create the stack in Portainer with these env vars set (do NOT commit):
+#   RADARR_API_KEY, SONARR_API_KEY, PROWLARR_API_KEY, BAZARR_API_KEY
+# See .env.example.
+
+x-common: &common
+  image: ghcr.io/onedr0p/exportarr:v2.0.1
+  restart: unless-stopped
+  environment:
+    - PORT=9707
+  networks:
+    - proxy
+
+services:
+  exportarr-radarr:
+    <<: *common
+    container_name: exportarr-radarr
+    command: ["radarr"]
+    environment:
+      - PORT=9707
+      - URL=http://192.168.0.10:7878
+      - APIKEY=${RADARR_API_KEY}
+      - ENABLE_ADDITIONAL_METRICS=true
+
+  exportarr-sonarr:
+    <<: *common
+    container_name: exportarr-sonarr
+    command: ["sonarr"]
+    environment:
+      - PORT=9707
+      - URL=http://192.168.0.10:8989
+      - APIKEY=${SONARR_API_KEY}
+      - ENABLE_ADDITIONAL_METRICS=true
+
+  exportarr-prowlarr:
+    <<: *common
+    container_name: exportarr-prowlarr
+    command: ["prowlarr"]
+    environment:
+      - PORT=9707
+      - URL=http://192.168.0.10:9696
+      - APIKEY=${PROWLARR_API_KEY}
+      - ENABLE_ADDITIONAL_METRICS=true
+
+  exportarr-bazarr:
+    <<: *common
+    container_name: exportarr-bazarr
+    command: ["bazarr"]
+    environment:
+      - PORT=9707
+      - URL=http://192.168.0.10:6767
+      - APIKEY=${BAZARR_API_KEY}
+
+networks:
+  proxy:
+    external: true

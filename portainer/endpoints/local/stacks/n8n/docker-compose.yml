@@ -39,6 +39,12 @@ services:
       - N8N_PROTOCOL=https
       - WEBHOOK_URL=https://n8n.home.shaunoneill.com/
 
+      # Prometheus metrics — served on the same port as n8n at /metrics.
+      # Prometheus scrapes n8n:5678/metrics over the `proxy` docker network.
+      - N8N_METRICS=true
+      - N8N_METRICS_INCLUDE_DEFAULT_METRICS=true
+      - N8N_METRICS_INCLUDE_WORKFLOW_ID_LABEL=true
+
     volumes:
       - /opt/n8n/data:/home/node/.n8n
 

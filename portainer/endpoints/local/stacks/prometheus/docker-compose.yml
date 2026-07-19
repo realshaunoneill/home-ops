@@ -81,3 +81,28 @@ configs:
         - job_name: gatus
           static_configs:
             - targets: ['gatus:8080']
+
+        # onedr0p/exportarr — one container per *arr app, all on port 9707.
+        # Labels give per-app slicing without needing separate jobs.
+        - job_name: exportarr
+          static_configs:
+            - targets: ['exportarr-radarr:9707']
+              labels: { app: radarr }
+            - targets: ['exportarr-sonarr:9707']
+              labels: { app: sonarr }
+            - targets: ['exportarr-prowlarr:9707']
+              labels: { app: prowlarr }
+            - targets: ['exportarr-bazarr:9707']
+              labels: { app: bazarr }
+
+        - job_name: plex
+          static_configs:
+            - targets: ['plex-exporter:9000']
+
+        - job_name: tautulli
+          static_configs:
+            - targets: ['tautulli-exporter:9487']
+
+        - job_name: n8n
+          static_configs:
+            - targets: ['n8n:5678']
