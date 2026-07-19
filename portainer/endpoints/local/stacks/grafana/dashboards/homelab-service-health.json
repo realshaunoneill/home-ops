@@ -131,7 +131,7 @@
       },
       "targets": [
         {
-          "expr": "gatus_results_success{key=\"infra_adguard\"}",
+          "expr": "gatus_results_endpoint_success{key=\"infra_adguard\"}",
           "instant": false,
           "refId": "A"
         }
@@ -249,7 +249,7 @@
       },
       "targets": [
         {
-          "expr": "gatus_results_success{key=\"media_nzbget\"}",
+          "expr": "gatus_results_endpoint_success{key=\"media_nzbget\"}",
           "instant": false,
           "refId": "A"
         }
@@ -308,7 +308,7 @@
       },
       "targets": [
         {
-          "expr": "gatus_results_success{key=\"apps_home-assistant\"}",
+          "expr": "gatus_results_endpoint_success{key=\"apps_home-assistant\"}",
           "instant": false,
           "refId": "A"
         }
