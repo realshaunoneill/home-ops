@@ -64,18 +64,21 @@ networks:
     external: true
 
 configs:
-  # Datasource provisioning. Nothing is enabled by default (no Prometheus in
-  # this repo yet). To wire one up: uncomment a block below, commit, and
-  # pull-and-redeploy the stack. Docs:
+  # Datasource provisioning — Prometheus lives on the same docker `proxy`
+  # network, so Grafana reaches it by container name. Edit this block and
+  # pull-and-redeploy to add more sources.
   # https://grafana.com/docs/grafana/latest/administration/provisioning/#data-sources
   gf_datasources:
     content: |
       apiVersion: 1
-      datasources: []
-      # Example — add Prometheus once it's running:
-      # - name: Prometheus
-      #   type: prometheus
-      #   access: proxy
-      #   url: http://prometheus:9090
-      #   isDefault: true
-      #   editable: false
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: false
+          jsonData:
+            timeInterval: 30s
+            httpMethod: POST

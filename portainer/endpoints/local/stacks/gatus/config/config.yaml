@@ -1,3 +1,5 @@
+metrics: true
+
 # Gatus monitoring config — versioned in git, read on container boot.
 # Docs: https://github.com/TwiN/gatus
 #

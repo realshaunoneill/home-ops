@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: prometheus
+    restart: unless-stopped
+    # nobody:nogroup — matches the uid the upstream image runs as.
+    user: "65534:65534"
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+      - "--web.external-url=https://prometheus.home.shaunoneill.com"
+
+    volumes:
+      # Persist the TSDB across redeploys. One-time host prep:
+      #   sudo mkdir -p /opt/prometheus/data && sudo chown -R 65534:65534 /opt/prometheus
+      - /opt/prometheus/data:/prometheus
+
+    # Inline scrape config — same self-contained pattern as traefik. Edit
+    # here and pull-and-redeploy the stack.
+    configs:
+      - source: prom_config
+        target: /etc/prometheus/prometheus.yml
+
+    ports:
+      # Direct access at http://<host>:9090 for debugging.
+      - "9090:9090"
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.home.shaunoneill.com`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+    networks:
+      - proxy
+      - default
+
+networks:
+  proxy:
+    external: true
+
+configs:
+  prom_config:
+    content: |
+      global:
+        scrape_interval: 30s
+        evaluation_interval: 30s
+        external_labels:
+          monitor: home-ops
+
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ['localhost:9090']
+
+        - job_name: node-exporter
+          static_configs:
+            - targets: ['node-exporter:9100']
+              labels: { host: local }
+            - targets: ['192.168.0.10:9100']
+              labels: { host: unraid }
+
+        - job_name: cadvisor
+          static_configs:
+            - targets: ['cadvisor:8080']
+              labels: { host: local }
+            - targets: ['192.168.0.10:8081']
+              labels: { host: unraid }
+
+        - job_name: traefik
+          static_configs:
+            - targets: ['traefik:8080']
+
+        - job_name: gatus
+          static_configs:
+            - targets: ['gatus:8080']

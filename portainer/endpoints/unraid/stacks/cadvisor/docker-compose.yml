@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+    command:
+      - "--docker_only=true"
+      - "--housekeeping_interval=30s"
+      - "--store_container_labels=false"
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+    # Published on 8081 (cAdvisor's 8080 avoids clashing with anything on
+    # unraid). Prometheus scrapes 192.168.0.10:8081/metrics cross-host.
+    ports:
+      - "8081:8080"

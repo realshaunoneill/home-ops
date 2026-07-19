@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    container_name: node-exporter
+    restart: unless-stopped
+
+    pid: host
+
+    command:
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      # Extra unraid-specific mounts to keep out of the filesystem collector.
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker|mnt/user0|mnt/addons|mnt/rootshare)($$|/)"
+
+    volumes:
+      - /:/host:ro,rslave
+
+    # Published so Prometheus on the local endpoint can scrape
+    # 192.168.0.10:9100/metrics across hosts.
+    ports:
+      - "9100:9100"

@@ -45,6 +45,13 @@ services:
       - "--certificatesresolvers.myresolver.acme.email=you@shaunoneill.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
 
+      # Prometheus scraping — exposes /metrics on the `traefik` entryPoint
+      # (:8080). Prometheus reaches it in-network at http://traefik:8080/metrics.
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entryPoint=traefik"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+
     ports:
       - "80:80"
       - "443:443"
