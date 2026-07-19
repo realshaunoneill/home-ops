@@ -7,3 +7,6 @@
 # Claude Code local project notes (may contain secrets/tokens). The tracked
 # CLAUDE.md is the shared version.
 CLAUDE.local.md
+
+# Local-only service API key inventory (never commit real values).
+.service-api-keys.local.env

@@ -23,7 +23,8 @@ services:
     # on this host, so this one is scoped to the home-ops tunnel.
     container_name: cloudflared-home
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    # Expose connector metrics on :2000 for Prometheus.
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token ${TUNNEL_TOKEN}
     environment:
       - TZ=Europe/Dublin
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
