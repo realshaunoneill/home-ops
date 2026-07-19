@@ -131,12 +131,12 @@
       },
       "targets": [
         {
-          "expr": "up{job=\"adguard\"}",
+          "expr": "gatus_results_success{key=\"infra_adguard\"}",
           "instant": false,
           "refId": "A"
         }
       ],
-      "title": "AdGuard (Prometheus up)",
+      "title": "AdGuard (Gatus success)",
       "type": "stat"
     },
     {

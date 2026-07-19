@@ -87,16 +87,6 @@ configs:
           static_configs:
             - targets: ['cloudflared:2000']
 
-        # AdGuard Home native Prometheus endpoint. It requires auth.
-        # Set ADGUARD_USERNAME/ADGUARD_PASSWORD on the Prometheus stack env.
-        - job_name: adguard
-          metrics_path: /control/prometheus
-          basic_auth:
-            username: '${ADGUARD_USERNAME:-}'
-            password: '${ADGUARD_PASSWORD:-}'
-          static_configs:
-            - targets: ['192.168.0.20:3000']
-
         # Home Assistant native Prometheus endpoint. Requires the Prometheus
         # integration enabled in HA and a long-lived access token.
         - job_name: homeassistant

@@ -100,3 +100,19 @@ endpoints:
     interval: 120s
     conditions:
       - "[STATUS] < 400"
+
+  - name: adguard
+    group: infra
+    url: https://adguard.home.shaunoneill.com
+    interval: 120s
+    conditions:
+      - "[STATUS] < 400"
+
+  - name: cloudflared
+    group: infra
+    # Checks the local connector metrics endpoint directly over docker DNS.
+    # This validates the tunnel connector process itself.
+    url: http://cloudflared:2000/metrics
+    interval: 120s
+    conditions:
+      - "[STATUS] < 400"
