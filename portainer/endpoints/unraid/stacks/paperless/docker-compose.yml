@@ -118,6 +118,13 @@ configs:
       already-unencrypted PDFs are left alone. Always exits 0 so consumption
       continues even if we can't unlock (paperless will just store the file
       encrypted as before).
+
+      IMPORTANT (paperless-ngx v2 semantics): paperless invokes this script
+      with the ORIGINAL consume-folder path as argv[1], but internally uses a
+      working copy (taken *before* this script runs) for the actual stored
+      document. We must therefore modify DOCUMENT_WORKING_PATH (env var), not
+      argv[1], or the decrypted file will never make it into the archive.
+      Modifying both is safest.
       """
       import os
       import sys
@@ -127,25 +134,25 @@ configs:
       def log(msg):
           print(f"[pre-consume-decrypt] {msg}", flush=True)
 
-      def main():
-          if len(sys.argv) < 2:
-              return 0
-          path = sys.argv[1]
+      def try_decrypt_in_place(path):
+          """Return True if decrypted (or already plain), False on real failure."""
+          if not path or not os.path.exists(path):
+              return True
           if not path.lower().endswith(".pdf"):
-              return 0
+              return True
           try:
               import pikepdf
           except ImportError:
               log("pikepdf not installed; skipping")
-              return 0
+              return True
           try:
               pikepdf.open(path).close()
-              return 0  # not encrypted
+              return True  # not encrypted
           except pikepdf.PasswordError:
               pass
           except Exception as e:
               log(f"open failed for {path}: {e}")
-              return 0
+              return True
           for pw in PASSWORDS:
               try:
                   pdf = pikepdf.open(path, password=pw)
@@ -153,7 +160,7 @@ configs:
                   continue
               except Exception as e:
                   log(f"unexpected error trying '{pw}' on {path}: {e}")
-                  return 0
+                  return True
               tmp = path + ".decrypting.tmp"
               try:
                   pdf.save(tmp)
@@ -161,8 +168,26 @@ configs:
                   pdf.close()
               os.replace(tmp, path)
               log(f"unlocked {os.path.basename(path)} with pw #{PASSWORDS.index(pw) + 1}")
-              return 0
+              return True
           log(f"no known password unlocked {os.path.basename(path)}")
+          return True
+
+      def main():
+          # Paperless-ngx sets DOCUMENT_WORKING_PATH to the internal working
+          # copy that actually becomes the stored source. Modify it.
+          working = os.environ.get("DOCUMENT_WORKING_PATH")
+          original = sys.argv[1] if len(sys.argv) >= 2 else None
+
+          # Deduplicate — sometimes the same file. Modify both to be safe.
+          targets = []
+          for p in (working, original):
+              if p and p not in targets:
+                  targets.append(p)
+          if not targets:
+              return 0
+
+          for p in targets:
+              try_decrypt_in_place(p)
           return 0
 
       if __name__ == "__main__":
