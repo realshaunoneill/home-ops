@@ -88,11 +88,82 @@ services:
       # via the web UI; changing the env later has no effect.
       PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER}
       PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD}
+      # Run any encrypted PDF through pikepdf with our known-good passwords
+      # before consumption. Script is inlined below as a `configs:` entry so
+      # it lives with the compose file (no bind-mount to go stale on redeploy).
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/pre-consume-decrypt.py
       # Run as the unraid share owner so files land with sane perms.
       USERMAP_UID: 99
       USERMAP_GID: 100
       TZ: Europe/Dublin
 
+    configs:
+      - source: pre_consume_decrypt
+        target: /usr/src/paperless/scripts/pre-consume-decrypt.py
+        mode: 0755
+
 volumes:
   pgdata:
   redisdata:
+
+configs:
+  pre_consume_decrypt:
+    content: |
+      #!/usr/bin/env python3
+      """Pre-consume decrypt for paperless-ngx.
+
+      Runs before paperless ingests a file (via PAPERLESS_PRE_CONSUME_SCRIPT).
+      For encrypted PDFs, try our known passwords in order and, on success,
+      overwrite the file in-place with the decrypted bytes. Non-PDFs and
+      already-unencrypted PDFs are left alone. Always exits 0 so consumption
+      continues even if we can't unlock (paperless will just store the file
+      encrypted as before).
+      """
+      import os
+      import sys
+
+      PASSWORDS = ["23091998", "230998"]
+
+      def log(msg):
+          print(f"[pre-consume-decrypt] {msg}", flush=True)
+
+      def main():
+          if len(sys.argv) < 2:
+              return 0
+          path = sys.argv[1]
+          if not path.lower().endswith(".pdf"):
+              return 0
+          try:
+              import pikepdf
+          except ImportError:
+              log("pikepdf not installed; skipping")
+              return 0
+          try:
+              pikepdf.open(path).close()
+              return 0  # not encrypted
+          except pikepdf.PasswordError:
+              pass
+          except Exception as e:
+              log(f"open failed for {path}: {e}")
+              return 0
+          for pw in PASSWORDS:
+              try:
+                  pdf = pikepdf.open(path, password=pw)
+              except pikepdf.PasswordError:
+                  continue
+              except Exception as e:
+                  log(f"unexpected error trying '{pw}' on {path}: {e}")
+                  return 0
+              tmp = path + ".decrypting.tmp"
+              try:
+                  pdf.save(tmp)
+              finally:
+                  pdf.close()
+              os.replace(tmp, path)
+              log(f"unlocked {os.path.basename(path)} with pw #{PASSWORDS.index(pw) + 1}")
+              return 0
+          log(f"no known password unlocked {os.path.basename(path)}")
+          return 0
+
+      if __name__ == "__main__":
+          sys.exit(main())
