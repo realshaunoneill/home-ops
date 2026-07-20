@@ -1,6 +1,6 @@
 services:
   mc:
-    image: itzg/minecraft-server:latest@sha256:e77d5de73b2906f7f8d96b5fb920e840fc925fffad2fccd95ee637b7daee5a5b
+    image: itzg/minecraft-server:latest@sha256:9faa6aefeedd5a883c3ee241653fd1421529bdbafc428d0513e43cae0f2b7d68
     tty: true
     stdin_open: true
     ports:
