@@ -47,7 +47,7 @@
   "panels": [
     {
       "collapsed": false,
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -60,7 +60,7 @@
       "type": "row"
     },
     {
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -124,7 +124,7 @@
       "type": "stat"
     },
     {
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -193,7 +193,7 @@
     },
     {
       "collapsed": false,
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -206,7 +206,7 @@
       "type": "row"
     },
     {
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -270,7 +270,7 @@
         "label": "Others",
         "threshold": 0
       },
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -314,7 +314,7 @@
       "valueName": "current"
     },
     {
-      "datasource": "${DS_RANCHER_MONITORING}",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "description": "",
       "fieldConfig": {
         "defaults": {
