@@ -18,7 +18,7 @@ services:
     # public). Version tags mirror the upstream GitHub releases at
     # https://github.com/cloudflare/cloudflared/releases — pinning to an
     # explicit version lets Renovate propose clean version bumps.
-    image: cloudflare/cloudflared:2026.7.1
+    image: cloudflare/cloudflared:2026.7.2
     # `cloudflared` is already taken by an unrelated personal-project container
     # on this host, so this one is scoped to the home-ops tunnel.
     container_name: cloudflared-home
