@@ -30,7 +30,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   gotenberg:
-    image: docker.io/gotenberg/gotenberg:8.24
+    image: docker.io/gotenberg/gotenberg:8.34
     container_name: paperless-gotenberg
     restart: unless-stopped
     # The gotenberg chromium API is used by paperless to convert Office /
