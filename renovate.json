@@ -33,9 +33,9 @@
       "automergeType": "branch"
     },
     {
-      "description": "Keep Plex bumps manual — plex is intentionally excluded from Portainer GitOps polling (see CLAUDE.md), so we want to control when its image is updated in the repo. Overrides the generic and linuxserver automerge rules above.",
+      "description": "Plex image updates are handled by Dependabot via a manual-review PR flow; disable Plex in Renovate to avoid duplicate PRs.",
       "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\/plex$/"],
-      "automerge": false
+      "enabled": false
     },
     {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",
