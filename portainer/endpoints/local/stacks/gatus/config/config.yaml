@@ -116,3 +116,10 @@ endpoints:
     interval: 120s
     conditions:
       - "[STATUS] < 400"
+
+  - name: unraid
+    group: infra
+    url: https://unraid.home.shaunoneill.com
+    interval: 120s
+    conditions:
+      - "[STATUS] < 400"
