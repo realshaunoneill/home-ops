@@ -55,6 +55,25 @@ Later additions with GitOps enabled: overseerr, cloudflared.
 `master` auto-deploys within ~5 min (compose changes only — "Re-pull image" is
 off, so image digests don't silently update).
 
+- **Never enable "Force redeployment" (`autoUpdate.forceUpdate`) on a stack.**
+  It recreates the container on *every* poll even when the commit hasn't
+  changed. Traefik had it on and was being recreated every 5 minutes,
+  ~12s of downtime each time — a ~4% request-drop rate (measured 6/150
+  probes failing, 0/150 after disabling) that looked like random network
+  flakiness. It also aborted in-flight ACME issuance, so new certs could
+  never finish. It was almost certainly switched on to work around the
+  "inline `configs:` changes don't recreate the container" gotcha below —
+  use the one-off `--force-recreate` there instead of leaving it armed.
+  `AutoUpdate` is a **top-level** field on the stack object, NOT inside
+  `GitConfig` (where it reads as `null` — easy to misdiagnose):
+  ```
+  curl -sS -H "X-API-Key: $PORTAINER_TOKEN" http://192.168.0.20:9000/api/stacks \
+    | jq -r '.[] | select(.AutoUpdate.ForceUpdate) | "\(.Id) \(.Name)"'
+  ```
+  To change it, `POST /api/stacks/{id}/git?endpointId=N` with
+  `autoUpdate.forceUpdate=false` — and re-supply `env` in the same body
+  (same wipe caveat as the redeploy API, below).
+
 ## Secrets
 
 - **Never commit secrets.** Real values go in the stack's **Environment
@@ -92,6 +111,31 @@ off, so image digests don't silently update).
   `traefik/dynamic/README.md` for why it moved).
 - File provider watches `/etc/traefik/dynamic`; Docker provider needs
   `traefik.enable=true` labels (used by n8n, tautulli — same-host only).
+- **`sniStrict` must stay `false`, and the default TLS store must keep its
+  wildcard cert.** With `sniStrict: true` and no default cert, Traefik aborts
+  the TLS *handshake* for any SNI lacking an issued cert — a silent drop with
+  no status code, no access-log line and no metric. Requests by IP died
+  outright and **a newly added subdomain was dead until its cert existed**
+  (invisible: every Gatus check uses a name that already has one). The
+  `tls.stores.default.defaultGeneratedCert` wildcard (`*.home.shaunoneill.com`)
+  now covers unmatched names, so they get a valid cert and a visible 404.
+  Kept wildcard-only (no apex in `sans`) on purpose — both names authorize
+  against the same `_acme-challenge.home.shaunoneill.com` record, which is
+  the duplicate-TXT collision described under DNS below.
+- **`websecure` sets `respondingTimeouts.readTimeout=600s`.** Traefik's default
+  is 60s and it bounds reading the *entire request including body*, so any
+  upload slower than that was killed mid-body with no status code. Verified by
+  drip-feeding a POST: 45s body OK, 61s body dropped at t=61s; 95s body passes
+  now. Matters for immich/paperless uploads from phones or over WireGuard.
+- **`default-chain` must actually be referenced by routers.** It was defined
+  and loading fine but attached to nothing, so HSTS/`frameDeny`/`nosniff`/
+  `referrerPolicy` were absent everywhere — dead config that looked live.
+  File routers list it under `middlewares:`; the six docker-routed stacks use
+  `traefik.http.routers.<n>.middlewares=default-chain@file` (the `@file`
+  suffix is required to reference across providers). plex/immich/paperless
+  deliberately use `default-secure-headers` **instead** of the chain: they
+  serve large already-compressed payloads over Range requests, where gzip
+  wastes CPU and risks breaking seeking on 206 responses.
 - **Routing model:** all routers are on the `websecure` (443) entrypoint. HTTP
   (80) globally redirects to HTTPS. Certs via Let's Encrypt **DNS-01 through
   Cloudflare** (`myresolver`, needs `CF_DNS_API_TOKEN`), stored in
