@@ -60,6 +60,9 @@ services:
       - "traefik.http.routers.grafana.rule=Host(`grafana.home.shaunoneill.com`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
       - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.grafana.middlewares=default-chain@file"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
     networks:

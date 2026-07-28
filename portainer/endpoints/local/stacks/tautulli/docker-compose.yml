@@ -23,6 +23,9 @@ services:
       - "traefik.http.routers.tautulli.rule=Host(`tautulli.home.shaunoneill.com`)"
       - "traefik.http.routers.tautulli.entrypoints=websecure"
       - "traefik.http.routers.tautulli.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.tautulli.middlewares=default-chain@file"
       - "traefik.http.services.tautulli.loadbalancer.server.port=8181"
     networks:
       - proxy

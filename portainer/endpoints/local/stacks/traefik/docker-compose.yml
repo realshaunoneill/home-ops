@@ -30,6 +30,13 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
+      # readTimeout covers reading the ENTIRE request including its body, and
+      # Traefik's default is 60s. Any upload slower than that was killed
+      # mid-body with no status code and no access-log entry — verified by
+      # drip-feeding a POST: a 45s body completed, a 61s body was dropped at
+      # t=61s. Bites large immich/paperless uploads from phones or over the
+      # WireGuard tunnel. 600s gives headroom while still bounding slowloris.
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=600s"
       - "--entrypoints.traefik.address=:8080"
 
       - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
@@ -107,6 +114,13 @@ configs:
               stsPreload: true
           default-compress:
             compress: {}
+          # default-chain = compress + security headers. Attach it to routers
+          # serving HTML dashboards. Media/document backends (plex, immich,
+          # paperless) reference default-secure-headers DIRECTLY instead, so
+          # they get the headers without compression: those serve large
+          # already-compressed payloads over HTTP Range requests, where
+          # gzipping wastes CPU and risks breaking seeking on partial (206)
+          # responses.
           default-chain:
             chain:
               middlewares:
@@ -119,7 +133,29 @@ configs:
         options:
           default:
             minVersion: VersionTLS12
-            sniStrict: true
+            # sniStrict was true, which made Traefik ABORT the TLS handshake
+            # for any SNI that didn't match an already-issued cert — a silent
+            # drop with no status code, no access log and no metric. It meant
+            # requests by IP were killed outright, and a newly added subdomain
+            # was completely dead until its cert existed (easy to hit given the
+            # ACME pre-propagation history above). With the default cert below,
+            # unmatched names now get a valid wildcard cert and a visible 404.
+            sniStrict: false
+        stores:
+          default:
+            # Wildcard default cert so every *.home.shaunoneill.com name is
+            # serveable the moment its router appears, before/without a
+            # per-host cert. Deliberately wildcard-ONLY (no apex in sans):
+            # both would authorize against the same
+            # _acme-challenge.home.shaunoneill.com record, which is the
+            # duplicate/stale-TXT collision that has blocked issuance here
+            # before. Per-router certResolver certs still win on exact match.
+            # If this order fails, Traefik falls back to its self-signed
+            # default cert — a cert warning, not a dropped connection.
+            defaultGeneratedCert:
+              resolver: myresolver
+              domain:
+                main: "*.home.shaunoneill.com"
 
   dyn_adguard:
     content: |
@@ -129,6 +165,8 @@ configs:
             rule: "Host(`adguard.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: adguard
             tls:
               certResolver: myresolver
@@ -148,6 +186,8 @@ configs:
             rule: "Host(`bazarr.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: bazarr
             tls:
               certResolver: myresolver
@@ -165,6 +205,8 @@ configs:
             rule: "Host(`clawdbot.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: clawdbot
             tls:
               certResolver: myresolver
@@ -182,6 +224,8 @@ configs:
             rule: "Host(`home.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: homeassistant
             tls:
               certResolver: myresolver
@@ -199,6 +243,10 @@ configs:
             rule: "Host(`immich.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              # Headers only — no compression. Immich streams photos/videos
+              # via Range requests (see the note in dyn_middlewares).
+              - default-secure-headers
             service: immich
             tls:
               certResolver: myresolver
@@ -217,6 +265,8 @@ configs:
             rule: "Host(`nzbget.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: nzbget
             tls:
               certResolver: myresolver
@@ -234,6 +284,10 @@ configs:
             rule: "Host(`paperless.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              # Headers only — no compression. Paperless serves PDFs to an
+              # in-browser viewer using Range requests.
+              - default-secure-headers
             service: paperless
             tls:
               certResolver: myresolver
@@ -254,6 +308,9 @@ configs:
               - websecure
             middlewares:
               - plex-web-redirect
+              # Headers only — no compression. Plex streams media over Range
+              # requests (see the note in dyn_middlewares).
+              - default-secure-headers
             service: plex
             tls:
               certResolver: myresolver
@@ -280,6 +337,8 @@ configs:
             rule: "Host(`prowlarr.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: prowlarr
             tls:
               certResolver: myresolver
@@ -297,6 +356,8 @@ configs:
             rule: "Host(`proxmox.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: proxmox
             tls:
               certResolver: myresolver
@@ -318,6 +379,8 @@ configs:
             rule: Host(`radarr.home.shaunoneill.com`)
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: radarr
             tls:
               certResolver: myresolver
@@ -325,6 +388,8 @@ configs:
             rule: Host(`sonarr.home.shaunoneill.com`)
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: sonarr
             tls:
               certResolver: myresolver
@@ -346,6 +411,8 @@ configs:
             rule: "Host(`traefik.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: traefik
             tls:
               certResolver: myresolver
@@ -363,6 +430,8 @@ configs:
             rule: "Host(`unraid.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: unraid
             tls:
               certResolver: myresolver
@@ -380,6 +449,8 @@ configs:
             rule: "Host(`wireguard.home.shaunoneill.com`)"
             entryPoints:
               - websecure
+            middlewares:
+              - default-chain
             service: wireguard
             tls:
               certResolver: myresolver

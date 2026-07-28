@@ -25,6 +25,9 @@ services:
       - "traefik.http.routers.gatus.rule=Host(`uptime.home.shaunoneill.com`)"
       - "traefik.http.routers.gatus.entrypoints=websecure"
       - "traefik.http.routers.gatus.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.gatus.middlewares=default-chain@file"
       - "traefik.http.services.gatus.loadbalancer.server.port=8080"
     networks:
       - proxy

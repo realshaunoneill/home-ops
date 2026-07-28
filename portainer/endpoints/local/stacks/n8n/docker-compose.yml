@@ -54,6 +54,9 @@ services:
       - "traefik.http.routers.n8n.rule=Host(`n8n.home.shaunoneill.com`)"
       - "traefik.http.routers.n8n.entrypoints=websecure"
       - "traefik.http.routers.n8n.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.n8n.middlewares=default-chain@file"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
     networks:

@@ -36,6 +36,9 @@ services:
       - "traefik.http.routers.prometheus.rule=Host(`prometheus.home.shaunoneill.com`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.prometheus.middlewares=default-chain@file"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
     networks:

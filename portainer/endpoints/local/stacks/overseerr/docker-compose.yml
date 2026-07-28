@@ -19,6 +19,9 @@ services:
       - "traefik.http.routers.overseerr.rule=Host(`overseerr.home.shaunoneill.com`)"
       - "traefik.http.routers.overseerr.entrypoints=websecure"
       - "traefik.http.routers.overseerr.tls.certresolver=myresolver"
+      # default-chain (compress + security headers) is defined in the traefik
+      # stack's inline dynamic config; @file qualifies the cross-provider ref.
+      - "traefik.http.routers.overseerr.middlewares=default-chain@file"
       - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
     networks:
       - proxy
