@@ -15,6 +15,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - /opt/plex/config:/config
+      - "/mnt/nas/plex/.plex-media:/config/Library/Application Support/Plex Media Server/Media"
       - /mnt/nas/plex/Movies:/movies
       - /mnt/nas/plex/TV:/tv
       - /mnt/nas/plex/Sports:/sports
