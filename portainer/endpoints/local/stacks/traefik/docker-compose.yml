@@ -361,11 +361,25 @@ configs:
             service: proxmox
             tls:
               certResolver: myresolver
+          pbs:
+            rule: "Host(`pbs.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            middlewares:
+              - default-chain
+            service: pbs
+            tls:
+              certResolver: myresolver
         services:
           proxmox:
             loadBalancer:
               servers:
                 - url: "https://192.168.0.200:8006"
+              serversTransport: proxmox-insecure
+          pbs:
+            loadBalancer:
+              servers:
+                - url: "https://192.168.0.220:8007"
               serversTransport: proxmox-insecure
         serversTransports:
           proxmox-insecure:
