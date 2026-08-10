@@ -8,6 +8,10 @@ services:
     environment:
       - TZ=Europe/Dublin
       - GATUS_CONFIG_PATH=/config/config.yaml
+      # Pushover alerting values are injected in Portainer stack env.
+      - GATUS_PUSHOVER_APPLICATION_TOKEN=${GATUS_PUSHOVER_APPLICATION_TOKEN}
+      - GATUS_PUSHOVER_USER_KEY=${GATUS_PUSHOVER_USER_KEY}
+      - GATUS_PUSHOVER_DEVICE=${GATUS_PUSHOVER_DEVICE:-}
     volumes:
       # Monitor definitions are versioned in git next to this compose file.
       # Requires the stack to be created in Portainer with "Enable relative
