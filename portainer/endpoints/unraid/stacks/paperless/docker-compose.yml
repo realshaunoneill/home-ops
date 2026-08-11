@@ -92,6 +92,9 @@ services:
       # before consumption. Script is inlined below as a `configs:` entry so
       # it lives with the compose file (no bind-mount to go stale on redeploy).
       PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/pre-consume-decrypt.py
+      # Comma-separated PDF passwords tried by the pre-consume decrypt helper.
+      # Keep real values in Portainer stack env (or local .env), not in git.
+      PAPERLESS_PDF_PASSWORDS: ${PAPERLESS_PDF_PASSWORDS:-}
       # Run as the unraid share owner so files land with sane perms.
       USERMAP_UID: 99
       USERMAP_GID: 100
@@ -129,7 +132,13 @@ configs:
       import os
       import sys
 
-      PASSWORDS = ["23091998", "230998"]
+      # Passwords are provided via PAPERLESS_PDF_PASSWORDS as a comma-separated
+      # list so values stay out of git history and compose source.
+      PASSWORDS = [
+          p.strip()
+          for p in os.environ.get("PAPERLESS_PDF_PASSWORDS", "").split(",")
+          if p.strip()
+      ]
 
       def log(msg):
           print(f"[pre-consume-decrypt] {msg}", flush=True)
@@ -144,6 +153,9 @@ configs:
               import pikepdf
           except ImportError:
               log("pikepdf not installed; skipping")
+              return True
+            if not PASSWORDS:
+              log("no PAPERLESS_PDF_PASSWORDS configured; skipping encrypted PDF unlock")
               return True
           try:
               pikepdf.open(path).close()

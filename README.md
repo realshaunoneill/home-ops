@@ -34,3 +34,10 @@ Unraid stack configs already in git (pending cutover where noted):
 - Compose files in `portainer/endpoints/*/stacks/` are the source of truth.
 - Metadata snapshots (`stack-meta.json`, `stack-index.yaml`, inventory JSON) are intentionally not tracked.
 - No export/bootstrap helper script is required in this repo.
+
+## Home Assistant Inventory Tracking
+
+- Use Home Assistant as the source of truth for household consumable counts.
+- Use Grafana/Prometheus for visibility and trends, not as a write-store.
+- Versioned starter templates for this workflow are in `home-assistant/`.
+- Setup instructions are documented in `home-assistant/README.md`.

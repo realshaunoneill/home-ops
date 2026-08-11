@@ -230,6 +230,16 @@ off, so image digests don't silently update).
 - No Kubernetes/Flux (legacy, removed). No metadata snapshots
   (`stack-meta.json`, inventory JSON).
 
+## Home Assistant inventory tracking
+
+- Household consumable inventory (toilet paper, washing-up liquid, etc.) should
+  be modeled in Home Assistant entities, not in Grafana storage.
+- Use `home-assistant/packages/household_essentials.yaml` as the versioned
+  starter package for helpers, thresholds, low-stock sensors, and alerts.
+- Use `home-assistant/dashboards/household_essentials.yaml` as the versioned
+  Lovelace view with plus/minus stock controls.
+- Keep Grafana as read-only visualization from Prometheus/HA metrics.
+
 ## Operational access
 
 - Diagnosing the running system is done over SSH to `realshaunoneill@192.168.0.20`

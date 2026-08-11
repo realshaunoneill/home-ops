@@ -1,0 +1,201 @@
+title: Household Essentials
+views:
+  - title: Essentials
+    path: essentials
+    icon: mdi:cart-variant
+    cards:
+      - type: markdown
+        content: |
+          ## Household essentials
+          Use the + and - buttons to keep stock counts up to date.
+
+      - type: entities
+        title: Alerts
+        show_header_toggle: false
+        entities:
+          - entity: input_boolean.household_essentials_notifications
+            name: Notifications enabled
+          - entity: input_text.household_essentials_notify_service
+            name: Notify service
+          - entity: sensor.household_essentials_low_count
+            name: Low-stock items
+          - entity: binary_sensor.toilet_paper_low
+          - entity: binary_sensor.washing_up_liquid_low
+          - entity: binary_sensor.laundry_detergent_low
+          - entity: binary_sensor.dishwasher_tablets_low
+          - entity: binary_sensor.bin_bags_low
+          - entity: binary_sensor.hand_soap_refills_low
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Toilet paper
+            show_header_toggle: false
+            entities:
+              - entity: input_number.toilet_paper_rolls
+                name: Current stock
+              - entity: input_number.toilet_paper_rolls_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.toilet_paper_rolls
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.toilet_paper_rolls
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Washing-up liquid
+            show_header_toggle: false
+            entities:
+              - entity: input_number.washing_up_liquid_bottles
+                name: Current stock
+              - entity: input_number.washing_up_liquid_bottles_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.washing_up_liquid_bottles
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.washing_up_liquid_bottles
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Laundry detergent
+            show_header_toggle: false
+            entities:
+              - entity: input_number.laundry_detergent_bottles
+                name: Current stock
+              - entity: input_number.laundry_detergent_bottles_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.laundry_detergent_bottles
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.laundry_detergent_bottles
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Dishwasher tablets
+            show_header_toggle: false
+            entities:
+              - entity: input_number.dishwasher_tablets
+                name: Current stock
+              - entity: input_number.dishwasher_tablets_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.dishwasher_tablets
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.dishwasher_tablets
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Bin bags
+            show_header_toggle: false
+            entities:
+              - entity: input_number.bin_bags
+                name: Current stock
+              - entity: input_number.bin_bags_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.bin_bags
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.bin_bags
+
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Hand soap refills
+            show_header_toggle: false
+            entities:
+              - entity: input_number.hand_soap_refills
+                name: Current stock
+              - entity: input_number.hand_soap_refills_minimum
+                name: Minimum threshold
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Use one
+                icon: mdi:minus
+                tap_action:
+                  action: call-service
+                  service: input_number.decrement
+                  target:
+                    entity_id: input_number.hand_soap_refills
+              - type: button
+                name: Add one
+                icon: mdi:plus
+                tap_action:
+                  action: call-service
+                  service: input_number.increment
+                  target:
+                    entity_id: input_number.hand_soap_refills

@@ -1,0 +1,307 @@
+# Household essentials inventory tracking for Home Assistant.
+#
+# This package creates:
+# - Quantity helpers for each tracked consumable item
+# - Minimum threshold helpers
+# - Low-stock binary sensors
+# - Alert automations for low and restocked transitions
+#
+# Include this package from your Home Assistant configuration.yaml:
+# homeassistant:
+#   packages: !include_dir_named packages
+
+input_boolean:
+  household_essentials_notifications:
+    name: Household essentials notifications
+    icon: mdi:bell-badge
+    initial: true
+
+input_text:
+  household_essentials_notify_service:
+    name: Household essentials notify service
+    icon: mdi:cellphone-message
+    max: 100
+    initial: notify.notify
+
+input_number:
+  toilet_paper_rolls:
+    name: Toilet paper rolls
+    icon: mdi:toilet-paper
+    min: 0
+    max: 96
+    step: 1
+    unit_of_measurement: rolls
+    initial: 12
+
+  toilet_paper_rolls_minimum:
+    name: Toilet paper minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 24
+    step: 1
+    unit_of_measurement: rolls
+    initial: 4
+
+  washing_up_liquid_bottles:
+    name: Washing-up liquid
+    icon: mdi:bottle-tonic-plus
+    min: 0
+    max: 24
+    step: 1
+    unit_of_measurement: bottles
+    initial: 2
+
+  washing_up_liquid_bottles_minimum:
+    name: Washing-up liquid minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 8
+    step: 1
+    unit_of_measurement: bottles
+    initial: 1
+
+  laundry_detergent_bottles:
+    name: Laundry detergent
+    icon: mdi:washing-machine
+    min: 0
+    max: 24
+    step: 1
+    unit_of_measurement: bottles
+    initial: 2
+
+  laundry_detergent_bottles_minimum:
+    name: Laundry detergent minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 8
+    step: 1
+    unit_of_measurement: bottles
+    initial: 1
+
+  dishwasher_tablets:
+    name: Dishwasher tablets
+    icon: mdi:dishwasher
+    min: 0
+    max: 120
+    step: 1
+    unit_of_measurement: tablets
+    initial: 20
+
+  dishwasher_tablets_minimum:
+    name: Dishwasher tablets minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 40
+    step: 1
+    unit_of_measurement: tablets
+    initial: 8
+
+  bin_bags:
+    name: Bin bags
+    icon: mdi:trash-can-outline
+    min: 0
+    max: 120
+    step: 1
+    unit_of_measurement: bags
+    initial: 20
+
+  bin_bags_minimum:
+    name: Bin bags minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 40
+    step: 1
+    unit_of_measurement: bags
+    initial: 8
+
+  hand_soap_refills:
+    name: Hand soap refills
+    icon: mdi:hand-wash-outline
+    min: 0
+    max: 24
+    step: 1
+    unit_of_measurement: bottles
+    initial: 2
+
+  hand_soap_refills_minimum:
+    name: Hand soap refills minimum
+    icon: mdi:alert-outline
+    min: 0
+    max: 8
+    step: 1
+    unit_of_measurement: bottles
+    initial: 1
+
+group:
+  household_essentials_stock:
+    name: Household essentials stock
+    entities:
+      - input_number.toilet_paper_rolls
+      - input_number.washing_up_liquid_bottles
+      - input_number.laundry_detergent_bottles
+      - input_number.dishwasher_tablets
+      - input_number.bin_bags
+      - input_number.hand_soap_refills
+
+  household_essentials_thresholds:
+    name: Household essentials minimum thresholds
+    entities:
+      - input_number.toilet_paper_rolls_minimum
+      - input_number.washing_up_liquid_bottles_minimum
+      - input_number.laundry_detergent_bottles_minimum
+      - input_number.dishwasher_tablets_minimum
+      - input_number.bin_bags_minimum
+      - input_number.hand_soap_refills_minimum
+
+template:
+  - binary_sensor:
+      - name: Toilet paper low
+        unique_id: household_essentials_toilet_paper_low
+        device_class: problem
+        state: >
+          {{ states('input_number.toilet_paper_rolls') | float(0) <= states('input_number.toilet_paper_rolls_minimum') | float(0) }}
+
+      - name: Washing-up liquid low
+        unique_id: household_essentials_washing_up_liquid_low
+        device_class: problem
+        state: >
+          {{ states('input_number.washing_up_liquid_bottles') | float(0) <= states('input_number.washing_up_liquid_bottles_minimum') | float(0) }}
+
+      - name: Laundry detergent low
+        unique_id: household_essentials_laundry_detergent_low
+        device_class: problem
+        state: >
+          {{ states('input_number.laundry_detergent_bottles') | float(0) <= states('input_number.laundry_detergent_bottles_minimum') | float(0) }}
+
+      - name: Dishwasher tablets low
+        unique_id: household_essentials_dishwasher_tablets_low
+        device_class: problem
+        state: >
+          {{ states('input_number.dishwasher_tablets') | float(0) <= states('input_number.dishwasher_tablets_minimum') | float(0) }}
+
+      - name: Bin bags low
+        unique_id: household_essentials_bin_bags_low
+        device_class: problem
+        state: >
+          {{ states('input_number.bin_bags') | float(0) <= states('input_number.bin_bags_minimum') | float(0) }}
+
+      - name: Hand soap refills low
+        unique_id: household_essentials_hand_soap_refills_low
+        device_class: problem
+        state: >
+          {{ states('input_number.hand_soap_refills') | float(0) <= states('input_number.hand_soap_refills_minimum') | float(0) }}
+
+  - sensor:
+      - name: Household essentials low count
+        unique_id: household_essentials_low_count
+        icon: mdi:cart-variant
+        unit_of_measurement: items
+        state: >
+          {% set low_entities = [
+            'binary_sensor.toilet_paper_low',
+            'binary_sensor.washing_up_liquid_low',
+            'binary_sensor.laundry_detergent_low',
+            'binary_sensor.dishwasher_tablets_low',
+            'binary_sensor.bin_bags_low',
+            'binary_sensor.hand_soap_refills_low'
+          ] %}
+          {{ low_entities | select('is_state', 'on') | list | count }}
+
+automation:
+  - id: household_essentials_notify_low
+    alias: Household essentials - notify when low
+    mode: queued
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.toilet_paper_low
+          - binary_sensor.washing_up_liquid_low
+          - binary_sensor.laundry_detergent_low
+          - binary_sensor.dishwasher_tablets_low
+          - binary_sensor.bin_bags_low
+          - binary_sensor.hand_soap_refills_low
+        from: "off"
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.household_essentials_notifications
+        state: "on"
+    variables:
+      item_map:
+        binary_sensor.toilet_paper_low:
+          name: Toilet paper
+          stock_entity: input_number.toilet_paper_rolls
+          minimum_entity: input_number.toilet_paper_rolls_minimum
+        binary_sensor.washing_up_liquid_low:
+          name: Washing-up liquid
+          stock_entity: input_number.washing_up_liquid_bottles
+          minimum_entity: input_number.washing_up_liquid_bottles_minimum
+        binary_sensor.laundry_detergent_low:
+          name: Laundry detergent
+          stock_entity: input_number.laundry_detergent_bottles
+          minimum_entity: input_number.laundry_detergent_bottles_minimum
+        binary_sensor.dishwasher_tablets_low:
+          name: Dishwasher tablets
+          stock_entity: input_number.dishwasher_tablets
+          minimum_entity: input_number.dishwasher_tablets_minimum
+        binary_sensor.bin_bags_low:
+          name: Bin bags
+          stock_entity: input_number.bin_bags
+          minimum_entity: input_number.bin_bags_minimum
+        binary_sensor.hand_soap_refills_low:
+          name: Hand soap refills
+          stock_entity: input_number.hand_soap_refills
+          minimum_entity: input_number.hand_soap_refills_minimum
+      item: "{{ item_map.get(trigger.entity_id, {}) }}"
+      item_name: "{{ item.name if item else 'Household item' }}"
+      stock_entity: "{{ item.stock_entity if item else '' }}"
+      minimum_entity: "{{ item.minimum_entity if item else '' }}"
+      stock: "{{ states(stock_entity) | int(0) }}"
+      minimum: "{{ states(minimum_entity) | int(0) }}"
+      notify_service: >
+        {% set s = states('input_text.household_essentials_notify_service') %}
+        {{ s if s not in ['unknown', 'unavailable', ''] else 'notify.notify' }}
+    action:
+      - service: "{{ notify_service }}"
+        data:
+          title: Household essentials low
+          message: "{{ item_name }} is low ({{ stock }} left, minimum {{ minimum }})."
+      - service: shopping_list.add_item
+        data:
+          name: "{{ item_name }}"
+
+  - id: household_essentials_notify_restocked
+    alias: Household essentials - notify when restocked
+    mode: queued
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.toilet_paper_low
+          - binary_sensor.washing_up_liquid_low
+          - binary_sensor.laundry_detergent_low
+          - binary_sensor.dishwasher_tablets_low
+          - binary_sensor.bin_bags_low
+          - binary_sensor.hand_soap_refills_low
+        from: "on"
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: input_boolean.household_essentials_notifications
+        state: "on"
+    variables:
+      item_map:
+        binary_sensor.toilet_paper_low: Toilet paper
+        binary_sensor.washing_up_liquid_low: Washing-up liquid
+        binary_sensor.laundry_detergent_low: Laundry detergent
+        binary_sensor.dishwasher_tablets_low: Dishwasher tablets
+        binary_sensor.bin_bags_low: Bin bags
+        binary_sensor.hand_soap_refills_low: Hand soap refills
+      item_name: "{{ item_map.get(trigger.entity_id, 'Household item') }}"
+      notify_service: >
+        {% set s = states('input_text.household_essentials_notify_service') %}
+        {{ s if s not in ['unknown', 'unavailable', ''] else 'notify.notify' }}
+    action:
+      - service: "{{ notify_service }}"
+        data:
+          title: Household essentials restocked
+          message: "{{ item_name }} is back above minimum."
