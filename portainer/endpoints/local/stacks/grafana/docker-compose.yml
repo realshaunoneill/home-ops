@@ -18,9 +18,11 @@ services:
       - GF_SERVER_ROOT_URL=https://grafana.home.shaunoneill.com
       - GF_SERVER_DOMAIN=grafana.home.shaunoneill.com
 
-      # Lock down: no self-signup, no anonymous access.
+      # Local convenience: keep self-signup off, but allow anonymous
+      # read-only dashboard access (no login prompt).
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
 
       # Kill telemetry / update pings.
       - GF_ANALYTICS_REPORTING_ENABLED=false
