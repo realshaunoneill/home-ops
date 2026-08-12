@@ -69,6 +69,10 @@ configs:
               labels: { host: local }
             - targets: ['192.168.0.10:9100']
               labels: { host: unraid }
+            # Proxmox node_exporter runs directly on the Proxmox host(s).
+            # Add one target per node as they are enabled.
+            - targets: ['192.168.0.200:9100']
+              labels: { host: proxmox-pve1 }
 
         - job_name: cadvisor
           static_configs:
