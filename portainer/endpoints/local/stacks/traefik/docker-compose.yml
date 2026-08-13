@@ -82,6 +82,7 @@ services:
       - { source: dyn_homeassistant, target: /etc/traefik/dynamic/homeassistant.yml }
       - { source: dyn_immich, target: /etc/traefik/dynamic/immich.yml }
       - { source: dyn_nzbget, target: /etc/traefik/dynamic/nzbget.yml }
+      - { source: dyn_obsidian, target: /etc/traefik/dynamic/obsidian.yml }
       - { source: dyn_paperless, target: /etc/traefik/dynamic/paperless.yml }
       - { source: dyn_plex, target: /etc/traefik/dynamic/plex.yml }
       - { source: dyn_prowlarr, target: /etc/traefik/dynamic/prowlarr.yml }
@@ -275,6 +276,25 @@ configs:
             loadBalancer:
               servers:
                 - url: "http://192.168.0.10:6789"
+
+  dyn_obsidian:
+    content: |
+      http:
+        routers:
+          obsidian:
+            rule: "Host(`obsidian.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            middlewares:
+              - default-chain
+            service: obsidian
+            tls:
+              certResolver: myresolver
+        services:
+          obsidian:
+            loadBalancer:
+              servers:
+                - url: "http://obsidian:3000"
 
   dyn_paperless:
     content: |

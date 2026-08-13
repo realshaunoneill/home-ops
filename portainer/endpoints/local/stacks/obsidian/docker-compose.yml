@@ -1,0 +1,126 @@
+version: "3.8"
+
+services:
+  obsidian:
+    image: lscr.io/linuxserver/obsidian:latest
+    container_name: obsidian
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Dublin
+      - CUSTOM_USER=${OBSIDIAN_WEB_USER:-obsidian}
+      - PASSWORD=${OBSIDIAN_WEB_PASSWORD}
+      - TITLE=Obsidian
+    ports:
+      - "3010:3000" # Optional direct LAN access; Traefik route is managed in the traefik stack.
+    volumes:
+      - /opt/obsidian/config:/config
+      - /opt/obsidian/vault:/vault
+    networks:
+      - proxy
+      - default
+    depends_on:
+      - vault-sync
+
+  vault-sync:
+    image: alpine/git:latest
+    container_name: obsidian-vault-sync
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Dublin
+      - VAULT_GIT_REPO=${VAULT_GIT_REPO:-https://github.com/realshaunoneill/Vault.git}
+      - VAULT_GIT_BRANCH=${VAULT_GIT_BRANCH:-}
+      - VAULT_GIT_SYNC_INTERVAL=${VAULT_GIT_SYNC_INTERVAL:-300}
+    volumes:
+      - /opt/obsidian/vault:/vault
+    command: >
+      sh -c '
+        set -eu
+
+        if [ -z "$${VAULT_GIT_REPO:-}" ]; then
+          echo "VAULT_GIT_REPO is required" >&2
+          exit 1
+        fi
+
+        clone_repo() {
+          if [ -n "$$(find /vault -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+            echo "Skipping clone: /vault is not empty and not a git repo" >&2
+            return 1
+          fi
+
+          if [ -n "$${VAULT_GIT_BRANCH:-}" ]; then
+            git clone --depth 1 --branch "$${VAULT_GIT_BRANCH}" --single-branch "$${VAULT_GIT_REPO}" /vault
+          else
+            git clone --depth 1 "$${VAULT_GIT_REPO}" /vault
+          fi
+        }
+
+        is_worktree_clean() {
+          [ -z "$$(git -C /vault status --porcelain)" ]
+        }
+
+        sync_repo() {
+          TARGET_BRANCH="$${VAULT_GIT_BRANCH:-$$(git -C /vault rev-parse --abbrev-ref HEAD)}"
+          CURRENT_BRANCH="$$(git -C /vault rev-parse --abbrev-ref HEAD)"
+
+          git -C /vault fetch origin "$${TARGET_BRANCH}"
+
+          if ! git -C /vault show-ref --verify --quiet "refs/heads/$${TARGET_BRANCH}"; then
+            if ! is_worktree_clean; then
+              echo "Skipping branch switch: local changes detected in /vault"
+              return 0
+            fi
+            git -C /vault checkout -b "$${TARGET_BRANCH}" "origin/$${TARGET_BRANCH}" || {
+              echo "Skipping branch switch: could not checkout $${TARGET_BRANCH}"
+              return 0
+            }
+          else
+            if [ "$${CURRENT_BRANCH}" != "$${TARGET_BRANCH}" ]; then
+              if ! is_worktree_clean; then
+                echo "Skipping branch switch: local changes detected in /vault"
+                return 0
+              fi
+              git -C /vault checkout "$${TARGET_BRANCH}" || {
+                echo "Skipping branch switch: could not checkout $${TARGET_BRANCH}"
+                return 0
+              }
+            fi
+          fi
+
+          if ! is_worktree_clean; then
+            echo "Skipping pull: local changes detected in /vault"
+            return 0
+          fi
+
+          LOCAL_HASH="$$(git -C /vault rev-parse HEAD)"
+          REMOTE_HASH="$$(git -C /vault rev-parse origin/$${TARGET_BRANCH})"
+
+          if [ "$${LOCAL_HASH}" = "$${REMOTE_HASH}" ]; then
+            echo "Vault already up to date on $${TARGET_BRANCH}"
+            return 0
+          fi
+
+          if git -C /vault merge-base --is-ancestor "$${LOCAL_HASH}" "$${REMOTE_HASH}"; then
+            git -C /vault pull --ff-only origin "$${TARGET_BRANCH}"
+          else
+            echo "Skipping pull: local branch has commits not on origin/$${TARGET_BRANCH}"
+          fi
+        }
+
+        while true; do
+          if [ ! -d /vault/.git ]; then
+            clone_repo || true
+            sleep "$${VAULT_GIT_SYNC_INTERVAL}"
+            continue
+          fi
+
+          sync_repo
+          sleep "$${VAULT_GIT_SYNC_INTERVAL}"
+        done
+      '
+
+networks:
+  proxy:
+    external: true
