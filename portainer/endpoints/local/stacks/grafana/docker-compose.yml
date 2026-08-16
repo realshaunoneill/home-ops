@@ -50,6 +50,8 @@ services:
         target: /etc/grafana/provisioning/datasources/datasources.yml
       - source: gf_dashboards_provider
         target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: gf_unifi_alert_rules
+        target: /etc/grafana/provisioning/alerting/unifi-alert-rules.yml
 
     ports:
       # Direct access at http://<host>:3300 — bypasses Traefik for debugging.
@@ -180,6 +182,78 @@ configs:
           options:
             path: /etc/grafana/dashboards
             foldersFromFilesStructure: false
+
+  # Grafana Alerting provisioning for UniFi log spikes in Loki.
+  # https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/file-provisioning/
+  gf_unifi_alert_rules:
+    content: |
+      apiVersion: 1
+      groups:
+        - orgId: 1
+          name: unifi-log-alerts
+          folder: home-ops
+          interval: 1m
+          rules:
+            - uid: unifi-high-severity-spike
+              title: UniFi High-Severity Log Spike
+              condition: C
+              data:
+                - refId: A
+                  queryType: instant
+                  relativeTimeRange:
+                    from: 300
+                    to: 0
+                  datasourceUid: loki
+                  model:
+                    datasource:
+                      type: loki
+                      uid: loki
+                    editorMode: code
+                    expr: sum(count_over_time({job="unifi-syslog",severity=~"warning|err|crit|alert|emerg"}[5m]))
+                    instant: true
+                    intervalMs: 1000
+                    maxDataPoints: 43200
+                    queryType: instant
+                    refId: A
+                - refId: C
+                  queryType: ""
+                  relativeTimeRange:
+                    from: 0
+                    to: 0
+                  datasourceUid: __expr__
+                  model:
+                    conditions:
+                      - evaluator:
+                          params:
+                            - 25
+                          type: gt
+                        operator:
+                          type: and
+                        query:
+                          params:
+                            - A
+                        reducer:
+                          params: []
+                          type: last
+                        type: query
+                    datasource:
+                      type: __expr__
+                      uid: __expr__
+                    expression: A
+                    intervalMs: 1000
+                    maxDataPoints: 43200
+                    refId: C
+                    type: threshold
+              noDataState: OK
+              execErrState: Error
+              for: 10m
+              annotations:
+                summary: UniFi high-severity log spike
+                description: More than 25 warning-or-higher UniFi syslog events in 5 minutes for at least 10 minutes.
+              labels:
+                severity: warning
+                source: unifi
+              isPaused: false
 
   loki_config:
     content: |
