@@ -23,6 +23,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=30s
 
       # Kill telemetry / update pings.
       - GF_ANALYTICS_REPORTING_ENABLED=false
