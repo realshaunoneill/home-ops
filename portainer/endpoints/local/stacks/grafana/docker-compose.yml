@@ -95,6 +95,17 @@ configs:
             timeInterval: 30s
             httpMethod: POST
 
+        # Loki logs from the local loki stack (including UniFi syslog via
+        # promtail). Lives on the shared docker `proxy` network.
+        - name: Loki
+          type: loki
+          uid: loki
+          access: proxy
+          url: http://loki:3100
+          editable: false
+          jsonData:
+            maxLines: 1000
+
   # Dashboard provider — Grafana watches /etc/grafana/dashboards/*.json and
   # imports/updates them on start (and every 30s if allowUiUpdates=false).
   # https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards

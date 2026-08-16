@@ -1,0 +1,137 @@
+version: "3.8"
+
+services:
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Dublin
+
+    command:
+      - "-config.file=/etc/loki/loki-config.yml"
+
+    volumes:
+      # Persist log chunks and indexes across redeploys. One-time host prep:
+      #   sudo mkdir -p /opt/loki/data && sudo chown -R 10001:10001 /opt/loki
+      - /opt/loki/data:/loki
+
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki-config.yml
+
+    ports:
+      # Direct API access at http://<host>:3100 for debugging/health checks.
+      - "3100:3100"
+
+    networks:
+      - proxy
+      - default
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: promtail
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Dublin
+
+    command:
+      - "-config.file=/etc/promtail/promtail.yml"
+
+    depends_on:
+      - loki
+
+    configs:
+      - source: promtail_config
+        target: /etc/promtail/promtail.yml
+
+    ports:
+      # UniFi remote syslog target -> <gateway-ip-of-this-host>:1514
+      - "1514:1514/udp"
+      # Promtail metrics/health endpoint.
+      - "9080:9080"
+
+    networks:
+      - default
+
+networks:
+  proxy:
+    external: true
+
+configs:
+  loki_config:
+    content: |
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100
+
+      common:
+        path_prefix: /loki
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+
+      schema_config:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+
+      storage_config:
+        tsdb_shipper:
+          active_index_directory: /loki/index
+          cache_location: /loki/index_cache
+        filesystem:
+          directory: /loki/chunks
+
+      compactor:
+        working_directory: /loki/compactor
+        compaction_interval: 10m
+        retention_enabled: true
+        delete_request_store: filesystem
+
+      limits_config:
+        retention_period: 30d
+
+      analytics:
+        reporting_enabled: false
+
+  promtail_config:
+    content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 0
+
+      positions:
+        filename: /tmp/positions.yaml
+
+      clients:
+        - url: http://loki:3100/loki/api/v1/push
+
+      scrape_configs:
+        # UniFi Activity Logging (SIEM Server) sends syslog to this UDP
+        # listener.
+        - job_name: unifi_syslog_udp
+          syslog:
+            listen_address: 0.0.0.0:1514
+            listen_protocol: udp
+            idle_timeout: 60s
+            label_structured_data: true
+            labels:
+              job: unifi-syslog
+              source: unifi
+          relabel_configs:
+            - source_labels: [__syslog_message_hostname]
+              target_label: host
+            - source_labels: [__syslog_message_severity]
+              target_label: severity
+            - source_labels: [__syslog_message_facility]
+              target_label: facility
+            - source_labels: [__syslog_message_app_name]
+              target_label: app
