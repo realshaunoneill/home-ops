@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   nzbget:
-    image: ghcr.io/linuxserver/nzbget:latest@sha256:b22a2b8b366d1e68e6341435bdabd9ff859642cc2ff4a04243d0723521d69d2e
+    image: ghcr.io/linuxserver/nzbget:latest@sha256:ba6abb402d66fc9c6eb749f015c9fd504684895f9511e83e1e753f7354966346
     container_name: nzbget
     restart: unless-stopped
     environment:
