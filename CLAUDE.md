@@ -212,9 +212,22 @@ off, so image digests don't silently update).
 
 ## Version pinning / Renovate
 
-- **Renovate GitHub App** is active (`renovate.json`) and is the primary image
-  bumper. Config: automerge digest/pin/patch, group linuxserver images, hold
-  majors for manual review (+`major-update` label), weekday 2-6am schedule.
+- **Renovate GitHub App** is active (`renovate.json`) and is the **only** image
+  bumper — Dependabot was removed (it existed solely for plex and would now
+  duplicate Renovate's PRs). Config: automerge digest/pin/patch/**minor**, group
+  linuxserver images, hold majors for manual review (+`major-update` label),
+  weekday 2-6am schedule.
+- **plex is the one image never auto-merged** (+`plex` label, kept out of the
+  linuxserver group so it gets its own PR). Merging a plex bump only changes the
+  repo — the stack has no GitOps polling, so it needs a manual "Pull and
+  redeploy" in Portainer afterwards.
+- **Tags with a per-build suffix need `versioning: loose`.** Renovate's default
+  `docker` versioning only compares tags whose suffix (everything after the
+  first `-`) is byte-identical, so `plex:1.43.3.10828-00f62d37d-ls315` and
+  `sonarr:4.0.19.2979-ls316` were silently *never* offered an update — the
+  changing git hash / `lsNNN` rebuild counter made every newer tag "incompatible".
+  Both are pinned to `versioning: loose` in `renovate.json`; add any other
+  image with a `-lsNNN`-style tag to that rule.
 - Prefer **explicit version tags** over `latest@sha256` where practical so
   Renovate proposes clean version bumps (radarr, sonarr done this way).
 - **postgres is pinned to `15` — do NOT bump the major** (n8n's DB; major

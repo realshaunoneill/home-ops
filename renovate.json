@@ -15,33 +15,43 @@
   },
   "packageRules": [
     {
-      "description": "Auto-merge low-risk updates (digest, pin, patch). These deploy via Portainer GitOps polling once merged.",
-      "matchUpdateTypes": ["digest", "pin", "patch"],
+      "description": "Auto-merge everything short of a major bump (digest, pin, patch, minor). These deploy via Portainer GitOps polling once merged. Majors and Plex are held back by the rules below, which must stay after this one to override it.",
+      "matchUpdateTypes": ["digest", "pin", "patch", "minor"],
       "automerge": true,
       "automergeType": "branch"
     },
     {
-      "description": "Group all LinuxServer.io images into one PR to reduce noise.",
-      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\//", "/^ghcr\\.io\\/linuxserver\\//"],
+      "description": "Group all LinuxServer.io images into one PR to reduce noise. Plex is excluded so it gets its own reviewable PR.",
+      "matchPackageNames": [
+        "/^lscr\\.io\\/linuxserver\\//",
+        "/^ghcr\\.io\\/linuxserver\\//",
+        "!/^lscr\\.io\\/linuxserver\\/plex$/",
+        "!/^ghcr\\.io\\/linuxserver\\/plex$/"
+      ],
       "groupName": "linuxserver images"
     },
     {
-      "description": "Auto-merge minor updates for LinuxServer.io images (app version bumps like Radarr 6.2 -> 6.3). The group's digest/patch updates are already covered by the low-risk rule above; this extends automerge to minor so mixed digest+minor groups don't block.",
-      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\//", "/^ghcr\\.io\\/linuxserver\\//"],
-      "matchUpdateTypes": ["minor"],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "description": "Plex image updates are handled by Dependabot via a manual-review PR flow; disable Plex in Renovate to avoid duplicate PRs.",
-      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\/plex$/"],
-      "enabled": false
+      "description": "Plex and Sonarr pin tags whose suffix changes on every build (plex 1.43.3.10896-<githash>-ls321, sonarr 4.0.19.2979-ls321). Renovate's default docker versioning only compares tags with a byte-identical suffix, so it silently found no updates for either image. Loose versioning compares the numeric release parts and orders the -lsNNN rebuild suffix numerically, so both get real update PRs.",
+      "matchPackageNames": [
+        "/^lscr\\.io\\/linuxserver\\/plex$/",
+        "/^lscr\\.io\\/linuxserver\\/sonarr$/"
+      ],
+      "versioning": "loose"
     },
     {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "addLabels": ["major-update"]
+    },
+    {
+      "description": "Plex is Renovate-managed but never auto-merged: the plex stack has no GitOps polling, so merging a bump only changes the repo and the new image needs a manual Pull and redeploy in Portainer. Review and merge the PR by hand, then redeploy.",
+      "matchPackageNames": [
+        "/^lscr\\.io\\/linuxserver\\/plex$/",
+        "/^ghcr\\.io\\/linuxserver\\/plex$/"
+      ],
+      "automerge": false,
+      "addLabels": ["plex"]
     }
   ]
 }

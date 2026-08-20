@@ -48,4 +48,6 @@ Stack names may overlap across endpoints (for example, `radarr` exists on both).
 ## Renovate Scope
 
 - Renovate should track compose files under `portainer/**/docker-compose.yml`.
+- Renovate is the only image bumper (no Dependabot). Everything below a major
+  bump auto-merges; majors and plex stay as PRs for manual review.
 - Legacy Kubernetes patterns should not be used.
