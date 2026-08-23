@@ -40,6 +40,20 @@ router/gateway `192.168.0.1`, proxmox `192.168.0.200`, home-assistant
     content changed — it updates the checkout but leaves the old container. If a
     config change doesn't take effect, force it on the host:
     `cd <checkout>/.../traefik && CF_DNS_API_TOKEN=<tok> docker compose -p traefik up -d --force-recreate`.
+  - **Never use the container-level "Recreate" button on a compose-managed
+    container.** Portainer rebuilds it from the container's *inspect* spec, which
+    has no notion of compose `configs:`, so the inline mounts are silently
+    dropped. Traefik came back with only its two real bind mounts and no
+    `/etc/traefik/dynamic` at all, which killed **every** router: file routers
+    had no config, and the docker-label routers failed resolving
+    `default-chain@file`. TLS kept working off the wildcard default cert, so the
+    signature is a uniform **404 on every hostname with a valid certificate** —
+    it looks like a routing bug, not a missing mount. Check
+    `docker inspect traefik --format '{{range .Mounts}}{{.Destination}} {{end}}'`;
+    if `/etc/traefik/dynamic` is absent, that's this. Fix by redeploying the
+    *stack* (which re-runs the unpacker and restores the configs), not the
+    container. Portainer logs the culprit as
+    `handler/docker/containers/recreate.go`.
 - Host-path volumes (`/opt/...`, `/mnt/user/...`) are fine anywhere and need no
   special setting — most stacks only use these.
 - **"Pull and redeploy"** applies compose/inline-config changes. Static Traefik
