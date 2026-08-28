@@ -1,0 +1,240 @@
+# UPS and Unraid alerting
+#
+# Versioned copy of the automations deployed into Home Assistant on 2026-08-29.
+# These are live in HA's `automations.yaml` (created via the REST config API),
+# so this file is the readable record and restore source, not the running config.
+#
+# Why these exist
+# ---------------
+# Two physical machines sit on one APC Smart-UPS 1500: Unraid (192.168.0.10,
+# the apcupsd master, USB-connected) and Proxmox (192.168.0.200, an apcupsd
+# `UPSTYPE net` slave reading Unraid's NIS on :3551). Home Assistant and the
+# `cevo` Docker host are both *guests of Proxmox*, so all observability dies
+# partway through any outage. HA can warn at the start of an outage — that
+# window is the only chance to act — but it cannot report recovery.
+#
+# Shutdown thresholds are staged so Proxmox halts well before Unraid, because
+# Unraid is what will eventually issue the UPS killpower:
+#   Proxmox : BATTERYLEVEL 55, MINUTES 25, TIMEOUT 0
+#   Unraid  : BATTERYLEVEL 40, MINUTES 15, TIMEOUT 0
+# Unraid previously had TIMEOUT 60, which shut the whole rack down 60 seconds
+# into any outage with the battery still at 100%.
+#
+# Entity naming note
+# ------------------
+# Both the `unraid` and `apcupsd` integrations title themselves "Vault", so
+# both produce `*.vault_*` entities. The apcupsd ones used to be `apc_ups_*`;
+# after the integration renamed them, 16 dead `apc_ups_*` duplicates stayed in
+# the entity registry (state `unavailable`, `restored: true`) under the same
+# still-loaded config entry. They were removed on 2026-08-29. If UPS entities
+# ever go `unavailable` while the integration reports healthy, check for this
+# same rename-orphan pattern before assuming a connection fault.
+
+automation:
+  - id: ups_on_battery
+    alias: "UPS: mains lost, running on battery"
+    description: >-
+      Fires the moment the UPS transfers to battery. This is the window to
+      intervene before Proxmox shuts down and takes Home Assistant with it.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.vault_online_status
+        to: "off"
+    action:
+      - service: notify.mobile_app_shauns_iphone
+        data:
+          title: "⚡ Power cut — UPS on battery"
+          message: >-
+            Charge {{ states('sensor.vault_battery') }}%,
+            {{ states('sensor.vault_time_left') }} min runtime left.
+            Proxmox shuts down at 55%, Unraid at 40%.
+          data:
+            push:
+              interruption-level: time-sensitive
+            tag: ups_state
+            group: ups
+
+  - id: ups_shutdown_imminent
+    alias: "UPS: shutdown imminent (battery near Proxmox threshold)"
+    description: Battery has fallen to within 3% of Proxmox's 55% shutdown trigger.
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.vault_battery
+        below: 58
+    condition:
+      - condition: state
+        entity_id: binary_sensor.vault_online_status
+        state: "off"
+    action:
+      - service: notify.mobile_app_shauns_iphone
+        data:
+          title: "🔻 UPS: shutdown imminent"
+          message: >-
+            Battery {{ states('sensor.vault_battery') }}%. Proxmox (incl. Home
+            Assistant) shuts down at 55%, Unraid at 40%.
+          data:
+            push:
+              interruption-level: time-sensitive
+            tag: ups_imminent
+            group: ups
+
+  - id: ups_power_restored
+    alias: "UPS: mains restored"
+    description: >-
+      Mains returned and the UPS is back online. Only ever seen if the outage
+      ended before Proxmox shut down.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.vault_online_status
+        to: "on"
+    action:
+      - service: notify.mobile_app_shauns_iphone
+        data:
+          title: "✅ Mains restored"
+          message: >-
+            UPS back online. Charge {{ states('sensor.vault_battery') }}%,
+            {{ states('sensor.vault_time_left') }} min runtime left.
+          data:
+            push:
+              interruption-level: active
+            tag: ups_state
+            group: ups
+
+  - id: ups_battery_needs_replacing
+    alias: "UPS: battery flagged for replacement"
+    description: >-
+      apcupsd STATUS contains REPLACEBATT. The battery date on this unit reads
+      2013-11-07, so treat charge and runtime estimates as optimistic.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: sensor.vault_status
+    condition:
+      - condition: template
+        value_template: "{{ 'REPLACEBATT' in states('sensor.vault_status')|upper }}"
+    action:
+      - service: notify.mobile_app_shauns_iphone
+        data:
+          title: "🔋 UPS battery needs replacing"
+          message: "The UPS is reporting REPLACEBATT. Status: {{ states('sensor.vault_status') }}"
+          data:
+            push:
+              interruption-level: time-sensitive
+            tag: ups_battery
+            group: ups
+
+  # Driven by apcupsd event scripts on Unraid rather than HA's 60s poll, so the
+  # notification is instant and still works if the HA integration breaks again.
+  # Hook scripts live on the Unraid flash at /boot/config/apcupsd-hooks/ and are
+  # reinstalled into /etc/apcupsd/ on every boot by /boot/config/go, because
+  # Unraid's /etc is a RAM filesystem.
+  #
+  # webhook_id is a shared secret and is deliberately NOT in this public repo.
+  # The real value lives in HA's automations.yaml and in the hook script on the
+  # Unraid flash. Substitute it if restoring from this file.
+  - id: ups_apcupsd_webhook
+    alias: "UPS: apcupsd event webhook (from Unraid)"
+    description: Instant push driven by apcupsd event scripts on Unraid.
+    mode: queued
+    max: 10
+    trigger:
+      - platform: webhook
+        webhook_id: REPLACE_WITH_REAL_WEBHOOK_ID
+        allowed_methods: [POST]
+        local_only: true
+    action:
+      - choose:
+          - conditions: "{{ trigger.json.event == 'onbattery' }}"
+            sequence:
+              - service: notify.mobile_app_shauns_iphone
+                data:
+                  title: "⚡ Power cut — UPS on battery"
+                  message: >-
+                    Charge {{ trigger.json.charge }}%,
+                    {{ trigger.json.timeleft }} min left.
+                    Proxmox stops at 55%, Unraid at 40%.
+                  data:
+                    push:
+                      interruption-level: time-sensitive
+                    tag: ups_state
+                    group: ups
+          - conditions: "{{ trigger.json.event == 'offbattery' }}"
+            sequence:
+              - service: notify.mobile_app_shauns_iphone
+                data:
+                  title: "✅ Mains restored"
+                  message: "UPS back online. Charge {{ trigger.json.charge }}%."
+                  data:
+                    push:
+                      interruption-level: active
+                    tag: ups_state
+                    group: ups
+          - conditions: "{{ trigger.json.event == 'changeme' }}"
+            sequence:
+              - service: notify.mobile_app_shauns_iphone
+                data:
+                  title: "🔋 UPS battery needs replacing"
+                  message: "apcupsd raised changeme. Battery date reads 2013-11-07."
+                  data:
+                    push:
+                      interruption-level: time-sensitive
+                    tag: ups_battery
+                    group: ups
+          - conditions: "{{ trigger.json.event == 'commfailure' }}"
+            sequence:
+              - service: notify.mobile_app_shauns_iphone
+                data:
+                  title: "⚠️ UPS comms lost"
+                  message: >-
+                    Unraid lost contact with the UPS over USB.
+                    Status: {{ trigger.json.status }}
+                  data:
+                    push:
+                      interruption-level: active
+                    tag: ups_comms
+                    group: ups
+        default:
+          - service: notify.mobile_app_shauns_iphone
+            data:
+              title: "UPS event: {{ trigger.json.event }}"
+              message: "Status: {{ trigger.json.status }}. Charge {{ trigger.json.charge }}%."
+              data:
+                push:
+                  interruption-level: active
+                tag: ups_other
+                group: ups
+
+  # Added after 42 Unraid notifications sat unread, including six disk3 SMART
+  # warnings on 2026-08-23 showing reallocated sectors climbing 672 -> 736 in
+  # about seven hours. Nothing was delivering them. INFO (backup completions,
+  # the bulk of the noise) is filtered out.
+  - id: unraid_warning_alert
+    alias: "Unraid: warning or alert raised"
+    description: Pushes Unraid WARNING/ALERT notifications to the phone.
+    mode: queued
+    max: 15
+    trigger:
+      - platform: state
+        entity_id: event.vault_notifications
+    condition:
+      - condition: template
+        value_template: >-
+          {{ state_attr('event.vault_notifications','importance')
+             in ['WARNING','ALERT'] }}
+      - condition: template
+        value_template: "{{ trigger.to_state.state not in ['unknown','unavailable'] }}"
+    action:
+      - service: notify.mobile_app_shauns_iphone
+        data:
+          title: >-
+            {{ '🚨' if state_attr('event.vault_notifications','importance') == 'ALERT'
+               else '⚠️' }} Unraid: {{ state_attr('event.vault_notifications','subject') }}
+          message: "{{ state_attr('event.vault_notifications','description') }}"
+          data:
+            push:
+              interruption-level: time-sensitive
+            group: unraid
+            url: "http://192.168.0.10/"
