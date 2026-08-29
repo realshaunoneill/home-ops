@@ -273,7 +273,14 @@ off, so image digests don't silently update).
     `14` is the finest pin available. v15 is a rewrite with a new config
     format, and lands as a reviewed major bump.
 - **postgres is pinned to `15` — do NOT bump the major** (n8n's DB; major
-  upgrades need a dump/migrate, not a tag change).
+  upgrades need a dump/migrate, not a tag change). The server refuses to start
+  on a data directory written by an older major, and **n8n has GitOps
+  polling**, so merging that bump auto-deploys straight into an outage.
+  Renovate kept re-raising it (#186 n8n 15→18, #199 paperless 16→18), so
+  `renovate.json` now disables **major** updates for `postgres` and
+  `docker.io/library/postgres`; minor/patch still flow. Re-enable it alongside
+  the migration, not before. immich's `ghcr.io/immich-app/postgres` is a
+  separate vectorchord build with its own upgrade path and is not covered.
 - Still on **floating major tags** (Renovate can only digest-bump these, not
   offer minor/patch PRs): `dd-agent:7`, paperless's `redis:7-alpine` and
   `postgres:16`, immich's `valkey:9-alpine`. Deliberate — pin them properly

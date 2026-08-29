@@ -44,10 +44,16 @@
       "addLabels": ["n8n"]
     },
     {
-      "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",
+      "description": "Require manual review for major bumps (e.g. Radarr v5->v6) which can need data migrations.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "addLabels": ["major-update"]
+    },
+    {
+      "description": "A postgres major is a dump/restore, not a tag change — the server refuses to start on a data directory written by an older major, so merging the bump just breaks the stack. Renovate raised #186 (n8n 15->18) and #199 (paperless 16->18) and would keep re-raising them forever, so majors are disabled for both. Minor/patch still flow. Re-enable this deliberately, at the same time as doing the migration. immich pins its own ghcr.io/immich-app/postgres (vectorchord build) and is NOT covered here — it needs immich's own documented upgrade path.",
+      "matchPackageNames": ["/^(docker\\.io\\/library\\/)?postgres$/"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     },
     {
       "description": "Plex is Renovate-managed but never auto-merged: the plex stack has no GitOps polling, so merging a bump only changes the repo and the new image needs a manual Pull and redeploy in Portainer. Review and merge the PR by hand, then redeploy.",
