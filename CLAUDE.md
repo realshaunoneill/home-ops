@@ -240,12 +240,38 @@ off, so image digests don't silently update).
   first `-`) is byte-identical, so `plex:1.43.3.10828-00f62d37d-ls315` and
   `sonarr:4.0.19.2979-ls316` were silently *never* offered an update — the
   changing git hash / `lsNNN` rebuild counter made every newer tag "incompatible".
-  Both are pinned to `versioning: loose` in `renovate.json`; add any other
-  image with a `-lsNNN`-style tag to that rule.
-- Prefer **explicit version tags** over `latest@sha256` where practical so
-  Renovate proposes clean version bumps (radarr, sonarr done this way).
+  The `versioning: loose` rule in `renovate.json` now matches every
+  LinuxServer image pinned to an `-lsNNN` tag (bazarr, nzbget, obsidian,
+  overseerr, plex, prowlarr, sonarr, transmission) on either the `lscr.io` or
+  `ghcr.io` prefix; add new ones there. **radarr is deliberately excluded** —
+  it pins the plain upstream tag (`6.3.0`, same digest as
+  `6.3.0.10514-ls314`), which default versioning handles correctly.
+- **Every image now carries a real version tag; `latest` is gone.** The one
+  exception is `plex-exporter` — `ghcr.io/jsclayton/prometheus-plex-exporter`
+  publishes only `latest` and `main`, no version tags at all — so it stays
+  `latest@sha256:<digest>` and Renovate keeps it current via digest updates.
+- **To convert a `latest@sha256` pin to the equivalent version tag, read the
+  image's own label rather than guessing** — the digest and the release tag's
+  digest often differ even for the same build, because `latest` is a separate
+  rebuild. Resolve the manifest → config blob and read
+  `org.opencontainers.image.version` (LinuxServer also sets `build_version`).
+  That is how each pin here was mapped to a behaviour-neutral version tag.
+- **Watch for upstreams whose `latest` is not their newest release:**
+  - `gatus` — `ghcr.io/twin/gatus:latest` is a rolling build of `main`; the
+    newest *release* (v5.36.0, May 2026) lags it by months. Pinning the
+    release tag is therefore a deliberate step back from unreleased commits.
+  - `n8n` — the beta channel uses plain semver too (`next`/`beta` = 2.37.4
+    while `latest`/`stable` = 2.36.8), so version comparison alone would
+    auto-merge onto beta. `renovate.json` pins `followTag: "stable"` for it.
+  - `wg-easy` — `latest` == the bare major `14`; there is no `14.x.y` tag, so
+    `14` is the finest pin available. v15 is a rewrite with a new config
+    format, and lands as a reviewed major bump.
 - **postgres is pinned to `15` — do NOT bump the major** (n8n's DB; major
   upgrades need a dump/migrate, not a tag change).
+- Still on **floating major tags** (Renovate can only digest-bump these, not
+  offer minor/patch PRs): `dd-agent:7`, paperless's `redis:7-alpine` and
+  `postgres:16`, immich's `valkey:9-alpine`. Deliberate — pin them properly
+  only if you want the PR traffic.
 - Watchtower was removed (was unused/redundant with Renovate + GitOps).
 
 ## Conventions

@@ -9,7 +9,9 @@ version: "3.8"
 
 services:
   plex-exporter:
-    image: ghcr.io/jsclayton/prometheus-plex-exporter:latest
+    # Upstream publishes only `latest` and `main` — there is no version tag to
+    # pin, so pin the digest instead and let Renovate do digest updates.
+    image: ghcr.io/jsclayton/prometheus-plex-exporter:latest@sha256:18ef1b2197efbcb75bd7276380955760995f10a9fbe55106809a6fcff91c2940
     container_name: plex-exporter
     restart: unless-stopped
 

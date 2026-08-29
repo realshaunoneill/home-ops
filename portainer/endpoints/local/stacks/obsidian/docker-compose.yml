@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   obsidian:
-    image: lscr.io/linuxserver/obsidian:latest
+    image: lscr.io/linuxserver/obsidian:v1.13.7-ls144
     container_name: obsidian
     restart: unless-stopped
     shm_size: "1gb"
@@ -25,7 +25,7 @@ services:
       - vault-sync
 
   vault-sync:
-    image: alpine/git:latest
+    image: alpine/git:v2.54.0
     container_name: obsidian-vault-sync
     restart: unless-stopped
     environment:

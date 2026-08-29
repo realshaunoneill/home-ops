@@ -31,12 +31,16 @@
       "groupName": "linuxserver images"
     },
     {
-      "description": "Plex and Sonarr pin tags whose suffix changes on every build (plex 1.43.3.10896-<githash>-ls321, sonarr 4.0.19.2979-ls321). Renovate's default docker versioning only compares tags with a byte-identical suffix, so it silently found no updates for either image. Loose versioning compares the numeric release parts and orders the -lsNNN rebuild suffix numerically, so both get real update PRs.",
+      "description": "LinuxServer.io tags carry a per-build suffix (-lsNNN, plus a git hash on plex: 1.43.3.10896-<githash>-ls321, sonarr 4.0.19.2979-ls321). Renovate's default docker versioning only compares tags with a byte-identical suffix, so the changing rebuild counter made every newer tag look incompatible and these images were silently never offered an update. Loose versioning compares the numeric release parts and orders the -lsNNN counter numerically. Radarr is deliberately absent: it pins the plain upstream tag (6.3.0), which default docker versioning already handles. Add any image pinned to an -lsNNN-style tag here.",
       "matchPackageNames": [
-        "/^lscr\\.io\\/linuxserver\\/plex$/",
-        "/^lscr\\.io\\/linuxserver\\/sonarr$/"
+        "/^(lscr|ghcr)\\.io\\/linuxserver\\/(bazarr|nzbget|obsidian|overseerr|plex|prowlarr|sonarr|transmission)$/"
       ],
       "versioning": "loose"
+    },
+    {
+      "description": "n8n publishes its beta line as plain semver too — `latest`/`stable` is 2.36.8 while `next`/`beta` is 2.37.4 — so plain version comparison would auto-merge us onto the beta channel. followTag makes Renovate propose whatever version the `stable` tag currently resolves to, which is what the previous `latest@sha256` pin effectively tracked.",
+      "matchPackageNames": ["/^n8nio\\/n8n$/"],
+      "followTag": "stable"
     },
     {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",

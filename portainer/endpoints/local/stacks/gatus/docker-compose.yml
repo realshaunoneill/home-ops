@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   gatus:
-    image: ghcr.io/twin/gatus:latest
+    # `latest` here is a rolling build of gatus main, not the newest release, so
+    # it is deliberately NOT used — pin the release tag and let Renovate bump it.
+    image: ghcr.io/twin/gatus:v5.36.0
     container_name: gatus
     restart: unless-stopped
     environment:

@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest@sha256:ab91301778251f82a31bbfc87f0497376d59e84439d9a1ceff6a61d594d1e3d7
+    image: lscr.io/linuxserver/prowlarr:2.5.2.5491-ls157
     container_name: prowlarr
     restart: unless-stopped
     environment:

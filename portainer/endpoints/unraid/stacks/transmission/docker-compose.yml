@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   transmission:
-    image: ghcr.io/linuxserver/transmission:latest@sha256:c85eb732f0ae9e4152b76c2d7da26e50c1fb54c05d9723800c198385ff66c247
+    image: ghcr.io/linuxserver/transmission:4.1.3-r0-ls359
     container_name: transmission
     restart: unless-stopped
     environment:
