@@ -38,9 +38,10 @@
       "versioning": "loose"
     },
     {
-      "description": "n8n publishes its beta line as plain semver too — `latest`/`stable` is 2.36.8 while `next`/`beta` is 2.37.4 — so plain version comparison would auto-merge us onto the beta channel. followTag makes Renovate propose whatever version the `stable` tag currently resolves to, which is what the previous `latest@sha256` pin effectively tracked.",
+      "description": "n8n ships its beta line as plain semver (`next`/`beta` was 2.37.4 while `latest`/`stable` was 2.36.8), so a version comparison cannot tell a stable release from a pre-release and would auto-merge onto beta. Do NOT try to fix that with followTag: `followTag: \"stable\"` was tried here and Renovate reports `Can't find version with tag stable for docker package n8nio/n8n`, then finds no updates at all — it silently freezes n8n, which is worse than the problem. So n8n is Renovate-managed but never auto-merged: check the proposed version against n8n's releases (is it on the stable channel yet?) and merge by hand.",
       "matchPackageNames": ["/^n8nio\\/n8n$/"],
-      "followTag": "stable"
+      "automerge": false,
+      "addLabels": ["n8n"]
     },
     {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6, Postgres majors) which can need data migrations.",

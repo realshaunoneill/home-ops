@@ -261,8 +261,14 @@ off, so image digests don't silently update).
     newest *release* (v5.36.0, May 2026) lags it by months. Pinning the
     release tag is therefore a deliberate step back from unreleased commits.
   - `n8n` — the beta channel uses plain semver too (`next`/`beta` = 2.37.4
-    while `latest`/`stable` = 2.36.8), so version comparison alone would
-    auto-merge onto beta. `renovate.json` pins `followTag: "stable"` for it.
+    while `latest`/`stable` = 2.36.8), so version comparison alone cannot tell
+    a release from a pre-release and would auto-merge onto beta. **`followTag:
+    "stable"` does not fix this — don't retry it.** Renovate fails with
+    `Can't find version with tag stable for docker package n8nio/n8n` and then
+    finds no updates at all, silently freezing the image (it showed up only as
+    a warning on the Dependency Dashboard). n8n is therefore never
+    auto-merged: check the proposed version is on the stable channel, then
+    merge by hand.
   - `wg-easy` — `latest` == the bare major `14`; there is no `14.x.y` tag, so
     `14` is the finest pin available. v15 is a rewrite with a new config
     format, and lands as a reviewed major bump.
