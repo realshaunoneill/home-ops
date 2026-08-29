@@ -10,7 +10,7 @@ version: "3.8"
 # See .env.example.
 
 x-common: &common
-  image: ghcr.io/onedr0p/exportarr:v2.0.1
+  image: ghcr.io/onedr0p/exportarr:v2.3.0
   restart: unless-stopped
   environment:
     - PORT=9707
