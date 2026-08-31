@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   obsidian:
-    image: lscr.io/linuxserver/obsidian:v1.13.7-ls144
+    image: lscr.io/linuxserver/obsidian:1.13.7
     container_name: obsidian
     restart: unless-stopped
     shm_size: "1gb"
