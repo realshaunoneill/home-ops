@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   tautulli:
-    image: tautulli/tautulli:v2.17.2
+    image: tautulli/tautulli:v2.18.1
     container_name: tautulli
     restart: unless-stopped
     environment:
