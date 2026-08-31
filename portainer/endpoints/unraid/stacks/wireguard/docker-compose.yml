@@ -1,38 +1,18 @@
-version: "3.8"
-
 services:
   wg-easy:
-    # wg-easy only tags the major on its stable line (`14` == `latest`); v15 is a
-    # rewrite with a new config format, so it stays a reviewed major bump.
     image: ghcr.io/wg-easy/wg-easy:15
     container_name: wg-easy
     restart: unless-stopped
 
+    network_mode: host
+
     environment:
-      - WG_HOST=local.home.shaunoneill.com
-      - PASSWORD_HASH=${PASSWORD_HASH}
-      # Unraid bridges its NIC as br0; wg-easy defaults its NAT masquerade to
-      # eth0, which is NOT the default-route interface, so VPN->internet traffic
-      # was never NATed. Force the correct WAN interface.
-      - WG_DEVICE=br0
-      - WG_PORT=51820
-      # AdGuard Home (on the local host) so VPN clients get network-wide ad/tracker
-      # blocking and resolve internal *.home.shaunoneill.com via a LAN resolver,
-      # not dependent on WAN NAT out of the tunnel.
-      - WG_DEFAULT_DNS=192.168.0.20
-      - WG_ALLOWED_IPS=0.0.0.0/0,::/0
-      - WG_PERSISTENT_KEEPALIVE=25
+      - PORT=51821
+      - INSECURE=true
 
     volumes:
       - /mnt/user/appdata/wg-easy:/etc/wireguard
 
-    #ports:
-      #- "51820:51820/udp"
-      #- "51821:51821/tcp"   # remove later if using Traefik
-    network_mode: host
-
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-
-
