@@ -246,6 +246,26 @@ off, so image digests don't silently update).
   `ghcr.io` prefix; add new ones there. **radarr is deliberately excluded** —
   it pins the plain upstream tag (`6.3.0`, same digest as
   `6.3.0.10514-ls314`), which default versioning handles correctly.
+- **`versioning: loose` MUST be paired with the `allowedVersions` filter —
+  never use it bare.** Loose treats any tag starting with digits as a version.
+  Bare loose (2026-08-30 → 31) had Renovate offer, and a human merge:
+  `sonarr 4.0.19.2979-ls322 → 5.14`, which is **Sonarr v2 on Mono 5.14 built
+  in 2021** — loose read "5.14 > 4.0.19". Sonarr came up answering `NotFound`
+  on `/api/v3` (v2 has no v3 API) and replaying v2 migrations. Also
+  `bazarr → 438eee94-ls46` (git hash), `prowlarr → 2.6.3-nightly`,
+  `nzbget → 26.3.20260827` (date stamp), `transmission → 4.1.3` (lost the ls
+  build). Nothing was lost — Sonarr v2 uses `nzbdrone.db`, so the v4
+  `sonarr.db` was untouched — but Sonarr was down until reverted in
+  `fb9f55c`. The `allowedVersions` regex restricts candidates to real
+  LinuxServer build tags; it is verified against the live tag lists, so
+  **re-verify it if you add an image whose tags look different**. Failure mode
+  is now benign: a non-conforming format means no updates, visible as a
+  Dependency Dashboard warning, rather than a wrong-tag deploy.
+- **wg-easy 14 → 15 is a migration, not a tag bump.** It was merged as a major
+  on 2026-08-31 and crash-looped every start with `You are using an invalid
+  Configuration for wg-easy ... migrate/from-14-to-15/`, taking the VPN down;
+  reverted to `14`. It exits before reading config, so nothing was migrated.
+  Do it deliberately, following upstream's 14→15 guide.
 - **Every image now carries a real version tag; `latest` is gone.** The one
   exception is `plex-exporter` — `ghcr.io/jsclayton/prometheus-plex-exporter`
   publishes only `latest` and `main`, no version tags at all — so it stays
