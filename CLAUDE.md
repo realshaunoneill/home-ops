@@ -69,6 +69,25 @@ Later additions with GitOps enabled: overseerr, cloudflared, homelable.
 `master` auto-deploys within ~5 min (compose changes only — "Re-pull image" is
 off, so image digests don't silently update).
 
+- **Editing `gatus/config/config.yaml` needs a manual `docker restart gatus`.**
+  The compose file itself doesn't change, so the 5m poll updates the git
+  checkout and advances the stack's `ConfigHash` — and stops there. Gatus only
+  reads its config at boot, so the new checks silently never load: the stack
+  looks fully up to date at the new commit while the running container is still
+  serving the old check list. Caught adding the homelable checks (stack sat at
+  the new hash, `/api/v1/endpoints/statuses` still returned the old 15).
+  Diagnose by comparing the two:
+  ```
+  curl -sS -H "X-API-Key: $PORTAINER_TOKEN" http://192.168.0.20:9000/api/stacks/46 | jq -r .GitConfig.ConfigHash
+  docker inspect gatus --format '{{.State.StartedAt}}'
+  ```
+  A restart is the right fix and is **safe**: despite the relative-path warning
+  above, the poll rewrites the config **in place** at the same checkout path
+  (verified — the bound source already held the new content), so the mount is
+  not dangling. `docker restart` also reuses the container spec, so the stored
+  `GATUS_PUSHOVER_*` env survives; confirmed identical before and after. Do
+  **not** reach for an API stack redeploy here, which would wipe that env, nor
+  the container Recreate button.
 - **Never enable "Force redeployment" (`autoUpdate.forceUpdate`) on a stack.**
   It recreates the container on *every* poll even when the commit hasn't
   changed. Traefik had it on and was being recreated every 5 minutes,
@@ -99,7 +118,11 @@ off, so image digests don't silently update).
 - **Env-var gotchas:**
   - The Portainer env panel **interpolates `$`** — a raw bcrypt hash like
     `$2a$12$...` gets mangled. For `PASSWORD_HASH`, double every `$`:
-    `$$2a$$12$$...`.
+    `$$2a$$12$$...`. **This applies to env set over the API too**, not just the
+    UI panel — verified on homelable: `AUTH_PASSWORD_HASH` was POSTed with
+    doubled `$` and `docker exec homelable-backend printenv` showed a correct
+    60-char, 3-`$` hash, with a login round-trip confirming it (right password
+    200 + JWT, wrong password 401). So double it wherever you set it.
   - A stored stack env survives redeploys; a value only typed at deploy (not
     saved on the stack) is lost on redeploy/restart. Keep `CF_DNS_API_TOKEN`
     saved on the traefik stack env.
@@ -258,6 +281,17 @@ containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
 - Gatus checks the SPA *and* `http://192.168.0.20:8000/api/v1/health`
   separately — because of host networking a frontend 200 only proves nginx is
   up, not the API behind it.
+- The MCP server speaks streamable HTTP at **`/mcp/` — the trailing slash
+  matters**, `POST /mcp` answers `307` to it. Auth is the `X-API-Key` header
+  (not Bearer). Verified working both on `192.168.0.20:8001` and through
+  Traefik at `https://homelable-mcp.home.shaunoneill.com/mcp/`; it reports
+  itself as server `homelable` and exposes tools + resources.
+- **No per-host certs exist for these two names, deliberately.** Every other
+  host has its own entry in `acme.json`, but Traefik saw the
+  `*.home.shaunoneill.com` wildcard already covers them and skipped issuance —
+  no ACME request, no error. They serve the wildcard and verify clean
+  (`ssl_verify_result=0`). Nothing to fix; do not go hunting for a missing
+  cert here.
 - The MCP router uses `default-secure-headers@file`, not `default-chain` —
   the chain adds compress and gzip buffering breaks streamed MCP responses
   (same reasoning as plex/immich/paperless).
