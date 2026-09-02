@@ -8,7 +8,7 @@ deploys them directly from this repo (public GitHub: `realshaunoneill/home-ops`)
 
 | Endpoint | Portainer ID | Host / connection | Runs |
 |---|---:|---|---|
-| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus, adguard, grafana, overseerr, cloudflared |
+| `local`  | 3 | `unix:///var/run/docker.sock` (host IP `192.168.0.20`) | traefik, plex, tautulli, n8n, minecraft, gatus, adguard, grafana, overseerr, cloudflared, homelable |
 | `unraid` | 4 | Portainer agent on `192.168.0.10` (`tcp`, signed requests) | radarr, sonarr, bazarr, prowlarr, nzbget, transmission, wireguard |
 
 Stack names can overlap across endpoints — **always use the endpoint path** when
@@ -64,7 +64,7 @@ router/gateway `192.168.0.1`, proxmox `192.168.0.200`, home-assistant
 
 11 stacks have GitOps polling (5m) enabled: bazarr, gatus, n8n, nzbget,
 prowlarr, radarr, sonarr, tautulli, traefik, transmission, wireguard.
-Later additions with GitOps enabled: overseerr, cloudflared.
+Later additions with GitOps enabled: overseerr, cloudflared, homelable.
 **plex is intentionally excluded.** minecraft is not git-backed. A push to
 `master` auto-deploys within ~5 min (compose changes only — "Re-pull image" is
 off, so image digests don't silently update).
@@ -224,6 +224,50 @@ off, so image digests don't silently update).
   value on the stack's Env in Portainer, redeploy (remember: API redeploy
   needs env re-supplied).
 
+## Homelable
+
+Visual homelab mapper (`github.com/Pouzor/homelable`, MIT) on **local**, three
+containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
+`homelable.home.shaunoneill.com` (SPA, also `:3002`) and
+`homelable-mcp.home.shaunoneill.com` (`:8001`). Data in `/opt/homelable/data`.
+
+- **The backend runs `network_mode: host`, on purpose.** The scanner reads MAC
+  addresses from ARP, which is layer 2 — from a bridge network every LAN host
+  is one hop away behind the Docker gateway, so the MAC field stays
+  permanently empty and `cap_add: NET_RAW` does not change that (it grants raw
+  sockets, not a place on the LAN). Empty MACs also break device identity:
+  rescans match on MAC first and IP second, so a DHCP lease change re-adds a
+  device as a new inventory entry. This is why the stack is not a copy of
+  upstream's compose.
+- **Consequence: `backend:8000` does not resolve.** The backend binds
+  `0.0.0.0:8000` on `192.168.0.20` with no port mapping. So the frontend's
+  shipped nginx.conf (which proxies to `backend:8000`) is replaced wholesale
+  by an inline `configs:` block pointing at `192.168.0.20:8000`, and `mcp`
+  gets the same address via `BACKEND_URL`. **Change all three together.**
+  The inline config also raises `client_max_body_size` to 50m — nginx's 1m
+  default 413s a phone photo on a floor-plan upload.
+- **Every secret is `${VAR:?...}`-guarded, so a missing value fails the deploy
+  rather than starting.** Deliberate: the backend is on a LAN-exposed port
+  with no Traefik in front, and the API redeploy endpoint is known to wipe
+  stored stack env (see Secrets). Failing loudly beats coming up with no auth.
+  `AUTH_PASSWORD_HASH` is bcrypt, so it hits the Portainer `$`-interpolation
+  gotcha — store it with every `$` doubled, as with wireguard's
+  `PASSWORD_HASH`.
+- `CORS_ORIGINS` must list every browser origin used. A missing entry fails
+  the SPA's fetches with a CORS error while the API itself looks healthy.
+- Gatus checks the SPA *and* `http://192.168.0.20:8000/api/v1/health`
+  separately — because of host networking a frontend 200 only proves nginx is
+  up, not the API behind it.
+- The MCP router uses `default-secure-headers@file`, not `default-chain` —
+  the chain adds compress and gzip buffering breaks streamed MCP responses
+  (same reasoning as plex/immich/paperless).
+- Can import from Proxmox (`192.168.0.200`) and Zigbee2MQTT / Z-Wave JS over
+  the HA broker (`192.168.0.245`); all off until configured, see
+  `.env.example`. One-off imports pass credentials in the UI dialog, which
+  keeps them out of the stack env entirely.
+- There is also a HACS integration (`Pouzor/homelable-hacs`) that runs natively
+  inside Home Assistant. Not used here — this is the standalone Docker stack.
+
 ## Version pinning / Renovate
 
 - **Renovate GitHub App** is active (`renovate.json`) and is the **only** image
@@ -266,6 +310,11 @@ off, so image digests don't silently update).
   Configuration for wg-easy ... migrate/from-14-to-15/`, taking the VPN down;
   reverted to `14`. It exits before reading config, so nothing was migrated.
   Do it deliberately, following upstream's 14→15 guide.
+- **The three homelable images are grouped into one Renovate PR.** They share a
+  version and a versioned API, so a solo frontend bump would leave it talking
+  to an older backend; the shared `groupName` makes the bump atomic. Their tags
+  are plain semver (`3.3.5`) — default `docker` versioning is correct, do
+  **not** add `versioning: loose` to them.
 - **Every image now carries a real version tag; `latest` is gone.** The one
   exception is `plex-exporter` — `ghcr.io/jsclayton/prometheus-plex-exporter`
   publishes only `latest` and `main`, no version tags at all — so it stays

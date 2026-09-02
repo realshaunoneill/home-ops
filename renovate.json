@@ -45,6 +45,13 @@
       "addLabels": ["n8n"]
     },
     {
+      "description": "Homelable ships as three images (backend, frontend, mcp) that share one version and one versioned API, so they must move together — a solo frontend bump would leave it talking to an older backend. Grouping them into a single PR makes that atomic, and the shared groupName means the automerge rule above applies to the group as a whole rather than to three independent branches. Their tags are plain semver (3.3.5), so default docker versioning is correct here — do NOT add `versioning: loose`.",
+      "matchPackageNames": [
+        "/^ghcr\\.io\\/pouzor\\/homelable-(backend|frontend|mcp)$/"
+      ],
+      "groupName": "homelable"
+    },
+    {
       "description": "Require manual review for major bumps (e.g. Radarr v5->v6) which can need data migrations.",
       "matchUpdateTypes": ["major"],
       "automerge": false,

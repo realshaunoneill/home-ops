@@ -110,6 +110,29 @@ endpoints:
     alerts:
       - type: pushover
 
+  - name: homelable
+    group: apps
+    url: https://homelable.home.shaunoneill.com
+    interval: 60s
+    conditions:
+      - "[STATUS] < 400"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+    alerts:
+      - type: pushover
+
+  - name: homelable-backend
+    group: apps
+    # Checked separately from the SPA above: the backend runs on host
+    # networking, so a frontend 200 only proves nginx is up, not that the API
+    # behind it is. Hit the LAN address directly, the same one the frontend's
+    # nginx proxies to.
+    url: http://192.168.0.20:8000/api/v1/health
+    interval: 60s
+    conditions:
+      - "[STATUS] < 400"
+    alerts:
+      - type: pushover
+
   # --- Infrastructure ---
   - name: traefik-dashboard
     group: infra
