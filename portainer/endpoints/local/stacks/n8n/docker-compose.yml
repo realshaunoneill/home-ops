@@ -15,7 +15,7 @@ services:
       - internal
 
   n8n:
-    image: n8nio/n8n:2.30.8
+    image: n8nio/n8n:2.38.3
     container_name: n8n
     restart: unless-stopped
     depends_on:
