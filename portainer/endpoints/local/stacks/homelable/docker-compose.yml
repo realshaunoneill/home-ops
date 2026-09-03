@@ -35,6 +35,22 @@ services:
     cap_add:
       # nmap needs raw sockets for ARP/SYN scanning.
       - NET_RAW
+
+    # Pin the resolver. Inheriting the host's resolv.conf makes every hostname
+    # status check flap: cevo's systemd-resolved upstreams are
+    # `192.168.0.10 192.168.0.5 8.8.8.8`, and the first two are both broken —
+    # unraid REFUSES :53, and 192.168.0.5 does not exist at all (no ping, absent
+    # from the LAN scan), so it black-holes. Every lookup walks that list before
+    # reaching 8.8.8.8: measured 1 failure in 20 with a worst case of 11.9s,
+    # against a 5s timeout in the status checker. Result was all 20 https-checked
+    # services flapping red while curl from the same host worked fine.
+    # AdGuard (on this host) first, Cloudflare as backstop — the same reasoning as
+    # the lego resolver pinning in the traefik stack. `dns:` is honoured under
+    # network_mode: host (verified: it rewrites the container's resolv.conf).
+    # The underlying host resolver list is still wrong and worth fixing separately.
+    dns:
+      - 192.168.0.20
+      - 1.1.1.1
     environment:
       - TZ=Europe/Dublin
 

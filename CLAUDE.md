@@ -218,6 +218,21 @@ off, so image digests don't silently update).
     than depending on WAN NAT.
   - Endpoint is `local.home.shaunoneill.com:51820` → WAN IP; port 51820/udp is
     forwarded. VPN subnet is `10.8.0.0/24`.
+- **cevo's own resolver list is broken, and two of its three upstreams are dead.**
+  `resolvectl status` on `192.168.0.20` shows
+  `DNS Servers: 192.168.0.10 192.168.0.5 8.8.8.8`, where **unraid (`.10`)
+  actively REFUSES :53** and **`192.168.0.5` does not exist at all** (no ping,
+  absent from a full LAN scan), so it black-holes. Every lookup on the box walks
+  that list before reaching `8.8.8.8`. Measured from a container on this host:
+  **1 failure in 20 lookups, worst case 11.9s.** Note what this also means —
+  cevo does **not** use AdGuard, the resolver it hosts.
+  The failure mode is nasty because it is intermittent and blames the wrong
+  thing: it took out all 20 hostname-based status checks in homelable (5s
+  timeout) while `curl` from the same host succeeded every time. Anything on
+  cevo with a short DNS timeout is exposed to this. homelable pins
+  `dns: [192.168.0.20, 1.1.1.1]` to sidestep it; **the host config itself is
+  still wrong and worth fixing at the source** (point systemd-resolved at
+  AdGuard and drop `.5`).
 - **AdGuard Home** (LOCAL host `192.168.0.20`, `network_mode: host`, DNS :53, UI
   :3000): intended as a network-wide resolver. Runs on local, NOT unraid — the
   unraid host already had something bound to `0.0.0.0:53` (deploy failed with
