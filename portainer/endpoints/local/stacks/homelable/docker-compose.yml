@@ -51,6 +51,28 @@ services:
     dns:
       - 192.168.0.20
       - 1.1.1.1
+
+    # Pinning the resolver alone was not enough — it fixed the dead upstreams but
+    # the status checker still flapped, and for a second, unrelated reason.
+    # AdGuard runs `ratelimit: 20` (queries/sec/client). One check cycle resolves
+    # ~20 hostnames at once, and glibc fires A and AAAA in parallel, so a single
+    # cycle bursts ~40 queries and AdGuard silently drops the excess. glibc's
+    # default is `timeout:5 attempts:2`, so a dropped query stalls the whole
+    # lookup for a full 5s before retrying — just over the checker's 5s budget.
+    # Measured on the deployed container, 19 concurrent getaddrinfo calls:
+    #   default                             max 5.02s  avg 2.38s  -> 10/19 flap
+    #   single-request only                 max 5.03s  avg 2.91s  -> no better
+    #   timeout:1 attempts:5                max 3.01s  avg 0.95s
+    #   + single-request (this)             max 1.03s  avg 0.80s
+    # single-request serialises A/AAAA, halving the burst; timeout:1 makes a
+    # dropped query cost 1s instead of 5. Note raw TCP to :443 was never the
+    # problem — it measured 0.01s for the same 19 connections.
+    # The real root cause is AdGuard's ratelimit being too low for its own
+    # Docker host; whitelisting it there would fix this network-wide.
+    dns_opt:
+      - single-request
+      - timeout:1
+      - attempts:5
     environment:
       - TZ=Europe/Dublin
 
