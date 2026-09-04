@@ -411,6 +411,57 @@ containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
 - There is also a HACS integration (`Pouzor/homelable-hacs`) that runs natively
   inside Home Assistant. Not used here — this is the standalone Docker stack.
 
+## cevo failover (traefik-backup + adguard-backup on unraid)
+
+Two stacks under `portainer/endpoints/unraid/stacks/`, added 2026-09-04 and
+**not deployed yet** — traefik-backup is blocked on an unraid setting. Read the
+comments in both compose files; the reasoning is long and load-bearing.
+
+- **DNS is the failover mechanism — there is no VIP.** The thing that made a
+  spare Traefik pointless on its own: UniFi DHCP hands every client
+  `dhcpd_dns_1 = 192.168.0.20` (AdGuard, **on cevo**) and
+  `dhcpd_dns_2 = 1.1.1.1`. When cevo dies AdGuard dies with it, clients fall
+  back to Cloudflare, and the public `*.home.shaunoneill.com` wildcard resolves
+  to **192.168.0.20** — the dead host. `adguard-backup` (192.168.0.12) answers
+  `192.168.0.11` instead. **AdGuard on cevo is a bigger SPOF than Traefik is.**
+- After deploying, set UniFi DHCP DNS on the Homelab **and** Default networks to
+  `192.168.0.20, 192.168.0.12, 1.1.1.1`.
+- **`traefik-backup` is BLOCKED until unraid Settings → Docker → "Host access to
+  custom networks" is Enabled** (needs the Docker service stopped, so a brief
+  outage for the arr stack, immich, paperless and WireGuard). Measured, not
+  assumed: from a throwaway `br0` container at 192.168.0.19,
+  `192.168.0.10:7878` and `:80` **failed** while `192.168.0.20`,
+  `192.168.0.245` and `1.1.1.1` all succeeded. ipvlan containers cannot reach
+  their own parent host, and 9 of the 13 services that survive a cevo outage
+  live on 192.168.0.10. Re-verify with:
+  ```
+  docker run --rm --network br0 alpine:3.20 nc -z -w4 192.168.0.10 7878
+  ```
+- Both use the **`br0` ipvlan** network (parent `br0`, 192.168.0.0/24) for real
+  LAN IPs, because **unraid's own webUI owns :80/:443 on 192.168.0.10** and
+  something historically held `0.0.0.0:53` there. `.11` = traefik-backup,
+  `.12` = adguard-backup; `.13`-`.19` were verified free.
+- **The backup Traefik must never run ACME.** Two Traefiks doing DNS-01 for the
+  same names both write `_acme-challenge.home.shaunoneill.com` — the Cloudflare
+  `81058` duplicate-TXT collision that blocks **all** issuance, cevo's renewals
+  included. It serves cevo's existing wildcard as PEM, synced by
+  `traefik-backup/sync-wildcard-cert.py` (runs on cevo, ships the cert through
+  the Portainer Docker API into a **stopped** helper container — archive upload
+  works on a container that was never started, so no `/start` is needed). Cron
+  it weekly; Traefik renews at 30 days remaining. Routers use bare `tls: {}`.
+- Route coverage is all of cevo's except **n8n and obsidian**, which publish no
+  host port and are only reachable on cevo's docker network. Both run on cevo so
+  they are down in this scenario anyway; publishing host ports for them is the
+  only way to front them from unraid.
+- The cevo-hosted routes are in the backup **on purpose**: clients do not
+  reliably prefer DNS server 1 (many query in parallel or round-robin), so some
+  will resolve to the backup while cevo is healthy. Both instances must answer
+  identically or that shows up as intermittent 404s.
+- Portainer's Docker proxy **rejects `POST /containers/{id}/start`** with
+  "starting container with non-empty request body was deprecated" even when no
+  body is sent. `POST /containers/{id}/restart` works and starts a stopped
+  container — use that.
+
 ## Media apps (Radarr / Sonarr / NZBGet)
 
 None of this is repo-managed — it lives in each app's own database, so it is
