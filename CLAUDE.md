@@ -592,6 +592,55 @@ in either app at all, which is why `/plex/torrent` sits empty).
 - No Kubernetes/Flux (legacy, removed). No metadata snapshots
   (`stack-meta.json`, inventory JSON).
 
+## Home Assistant add-ons & custom integrations
+
+Not repo-managed — it lives on the HAOS box. Access paths, including the
+Supervisor-over-websocket rule, are in `CLAUDE.local.md`. Versions as of
+2026-09-04: core **2026.8.3**, OS 18.2, Supervisor 2026.08.0, 8 add-ons,
+45 config entries.
+
+- **8 add-ons:** Advanced SSH & Web Terminal, File editor, Matter Server,
+  Mosquitto broker, Samba share, Studio Code Server, Terminal & SSH,
+  Zigbee2MQTT. **Custom (HACS) integrations with update entities:** `spook`
+  ("Your homie") and `unraid` (`ruaan-deysel/ha-unraid`, titled "Vault").
+  Also `smlight` (SLZB-06MU) as a built-in integration.
+- Update an add-on with `POST /addons/<slug>/update` over the Supervisor
+  websocket; update a HACS integration by calling the `update.install` service
+  on its `update.*` entity. **HACS integration updates need a core restart** to
+  load the new code — run `POST /api/config/core/check_config` first, then
+  `homeassistant.restart`. A restart took ~84s.
+- **The `update.*` entity lags the Supervisor.** After updating Zigbee2MQTT,
+  `/addons/<slug>/info` reported the new version while
+  `update.zigbee2mqtt_update` still showed the old one as pending. Trust the
+  Supervisor (or `sensor.zigbee2mqtt_bridge_version`), not the update entity.
+  The add-on `update` call itself also returned an empty `unknown_error` while
+  succeeding — verify by state, not by the API's return value.
+- **Not everything in `update.*` is Home Assistant's to update.**
+  `update.paperless_software` (2.20.15 → **3.1.3**, a major) and the
+  `*_image_update_available` entities (traefik, cloudflared, n8n-postgres,
+  dd-agent) are the **Docker stacks in this repo** — that is Renovate's job, and
+  a major like paperless goes through review. Do not "update" those from HA.
+- **Zigbee2MQTT's `frontend.port` is meaningless under the add-on.** Upstream
+  docs: `port` is optional (default 8080), but "the addon will force the
+  frontend to run on port 8099 as Home Assistant Ingress requires this". The
+  explicit `port: 8099` line was therefore removed as dead config. Note the
+  add-on declares `8099/tcp` **unmapped** (ingress only), so the UI is not
+  reachable from the network — see below before trying to reverse-proxy it.
+- **Edit `/config/zigbee2mqtt/configuration.yaml` with the add-on STOPPED.**
+  Z2M rewrites that file itself, so a live edit gets clobbered — the same shape
+  of bug as the AdGuard config. Reach it over the already-running Samba add-on
+  (`mount_smbfs`, credentials fetched on demand — never stored). It holds the
+  Zigbee `network_key` and `pan_id`: treat it as a secret and never paste it
+  anywhere. Backup: `configuration.yaml.bak-dropport`.
+- Z2M talks to the **SLZB-06MU coordinator over the network**,
+  `serial: port: tcp://192.168.0.165:6638`, `adapter: ember`. There is no USB
+  stick to look for. Take a partial add-on backup before updating it — the
+  add-on data holds the coordinator database, and Supervisor makes one too.
+- **A Gatus HTTP check cannot see a core restart.** HA serves `200` on `/` while
+  core state is still `NOT_RUNNING`, so all probes stayed green through an 84s
+  restart. If HA readiness needs monitoring, check an authenticated `/api/`
+  endpoint or a specific entity instead of the front page.
+
 ## Home Assistant inventory tracking
 
 - Household consumable inventory (toilet paper, washing-up liquid, etc.) should
