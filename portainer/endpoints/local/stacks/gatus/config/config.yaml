@@ -234,3 +234,87 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 168h"
     alerts:
       - type: pushover
+
+  # --- Failover pair on unraid (see CLAUDE.md "cevo failover") ---
+  # These exist so the warm spare cannot rot unnoticed: a backup you only
+  # discover is broken during an outage is worse than none.
+  #
+  # DNS checks, not web-UI checks. The adguard endpoint above only proves the
+  # admin UI answers, which says nothing about whether it is resolving — and
+  # resolution is the entire job. Each asserts the ANSWER, so a wrong rewrite
+  # target is caught too, not just a dead server.
+  - name: adguard-dns-primary
+    group: failover
+    url: "192.168.0.20"
+    interval: 120s
+    dns:
+      query-name: "radarr.home.shaunoneill.com"
+      query-type: "A"
+    conditions:
+      - "[CONNECTED] == true"
+      - "[DNS_RCODE] == NOERROR"
+      # Primary must point at cevo's traefik.
+      - "[BODY] == 192.168.0.20"
+    alerts:
+      - type: pushover
+
+  - name: adguard-dns-backup
+    group: failover
+    url: "192.168.0.12"
+    interval: 120s
+    dns:
+      query-name: "radarr.home.shaunoneill.com"
+      query-type: "A"
+    conditions:
+      - "[CONNECTED] == true"
+      - "[DNS_RCODE] == NOERROR"
+      # Backup must point at the unraid traefik, or failover is silently broken.
+      - "[BODY] == 192.168.0.11"
+    alerts:
+      - type: pushover
+
+  # The WAN-IP pass-through exceptions must survive on the backup too, or
+  # WireGuard and Minecraft break during a failover.
+  - name: adguard-dns-backup-wan-exception
+    group: failover
+    url: "192.168.0.12"
+    interval: 300s
+    dns:
+      query-name: "local.home.shaunoneill.com"
+      query-type: "A"
+    conditions:
+      - "[CONNECTED] == true"
+      - "[DNS_RCODE] == NOERROR"
+      # Must NOT be rewritten to a LAN address.
+      - "[BODY] != 192.168.0.11"
+      - "[BODY] != 192.168.0.20"
+    alerts:
+      - type: pushover
+
+  - name: traefik-backup
+    group: failover
+    # Hit the spare Traefik's own API directly by IP: going through a hostname
+    # would resolve to cevo and prove nothing about this instance.
+    url: http://192.168.0.11:8080/api/overview
+    interval: 120s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+    alerts:
+      - type: pushover
+
+  # Proves the spare can actually serve a site end-to-end, including the synced
+  # wildcard cert — which expires and is refreshed by cron, so it can go stale.
+  - name: traefik-backup-serving
+    group: failover
+    url: https://192.168.0.11
+    interval: 300s
+    headers:
+      Host: radarr.home.shaunoneill.com
+    client:
+      insecure: true
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] < 400"
+    alerts:
+      - type: pushover

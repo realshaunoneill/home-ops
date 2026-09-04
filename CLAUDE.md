@@ -458,9 +458,18 @@ recurring complaints.
 
 ## cevo failover (traefik-backup + adguard-backup on unraid)
 
-Two stacks under `portainer/endpoints/unraid/stacks/`, added 2026-09-04 and
-**not deployed yet** — traefik-backup is blocked on an unraid setting. Read the
-comments in both compose files; the reasoning is long and load-bearing.
+Two stacks under `portainer/endpoints/unraid/stacks/`, **deployed and
+failover-tested 2026-09-04**. Portainer stack ids: **78 traefik-backup**
+(192.168.0.11), **79 adguard-backup** (192.168.0.12). Read the comments in both
+compose files; the reasoning is long and load-bearing.
+
+**Proven, not assumed.** With cevo's `traefik` AND `adguard` containers both
+stopped, a LAN client resolving via 192.168.0.12 reached **12/12** of
+radarr, sonarr, bazarr, prowlarr, nzbget, immich, paperless, unraid, wireguard,
+home-assistant, proxmox and pbs. Re-run it any time with the recipe at the
+bottom of this section. A useful side effect: because the spare proxies straight
+to published host ports rather than through cevo's Traefik, it also covers a
+Traefik-only failure on cevo — the cevo-hosted sites stayed up in that test too.
 
 - **DNS is the failover mechanism — there is no VIP.** The thing that made a
   spare Traefik pointless on its own: UniFi DHCP hands every client
@@ -469,21 +478,56 @@ comments in both compose files; the reasoning is long and load-bearing.
   back to Cloudflare, and the public `*.home.shaunoneill.com` wildcard resolves
   to **192.168.0.20** — the dead host. `adguard-backup` (192.168.0.12) answers
   `192.168.0.11` instead. **AdGuard on cevo is a bigger SPOF than Traefik is.**
-- After deploying, set UniFi DHCP DNS on the Homelab **and** Default networks to
-  `192.168.0.20, 192.168.0.12, 1.1.1.1`.
-- **`traefik-backup` is BLOCKED until unraid Settings → Docker → "Host access to
-  custom networks" is Enabled** (needs the Docker service stopped, so a brief
-  outage for the arr stack, immich, paperless and WireGuard). The underlying
-  setting is **`DOCKER_CUSTOM_NETWORKS` in `/boot/config/docker.cfg`**, which is
-  currently `" "` (empty = off); `DOCKER_NETWORK_TYPE="1"` confirms ipvlan. With
-  it off there is no shim interface — the host shows only `docker0`. Measured,
-  not assumed: from a throwaway `br0` container at 192.168.0.19,
+- DHCP DNS on the Homelab **and** Default networks is now
+  `192.168.0.20, 192.168.0.12, 1.1.1.1`. Existing leases keep the old list until
+  they renew.
+- **The ipvlan host-access prerequisite is DONE.** The setting is
+  **`DOCKER_ALLOW_ACCESS="yes"` in `/boot/config/docker.cfg`** — NOT
+  `DOCKER_CUSTOM_NETWORKS`, which is a different thing (the list of manually
+  defined networks). `rc.docker` gates shim creation on
+  `[[ $DOCKER_ALLOW_ACCESS == yes ]]`, and the variable was absent from the file
+  entirely, so no shim existed. Appended it and restarted the Docker service;
+  `shim-br0@br0` now carries `192.168.0.10/24` and all 19 containers came back.
+  Backup: `/boot/config/docker.cfg.bak-hostaccess`. Measured before and after:
+  from a throwaway `br0` container at 192.168.0.19,
   `192.168.0.10:7878` and `:80` **failed** while `192.168.0.20`,
-  `192.168.0.245` and `1.1.1.1` all succeeded. ipvlan containers cannot reach
-  their own parent host, and 9 of the 13 services that survive a cevo outage
-  live on 192.168.0.10. Re-verify with:
+  `192.168.0.245` and `1.1.1.1` all succeeded; afterwards all 14 targets
+  succeeded. ipvlan containers cannot reach their own parent host without the
+  shim, and 9 of the 13 services that survive a cevo outage live on
+  192.168.0.10. Re-verify with:
   ```
   docker run --rm --network br0 alpine:3.20 nc -z -w4 192.168.0.10 7878
+  ```
+- **unraid's own DNS was broken the same way cevo's was.**
+  `/boot/config/network.cfg` had `DNS_SERVER1="192.168.0.5"` — the host that does
+  not exist — with `8.8.8.8` behind it. Worse, that combination broke `docker
+  pull`: Docker Hub resolved to AAAA via 8.8.8.8 and unraid has `PROTOCOL="ipv4"`
+  with no IPv6 route, so pulls died with `network is unreachable`. That is why
+  the adguard-backup stack first deployed with no container. Now
+  `192.168.0.20, 192.168.0.12, 1.1.1.1` — AdGuard first both drops the dead
+  server and suppresses AAAA (`aaaa_disabled`), which fixed the pull
+  immediately. Applied to `network.cfg` for persistence AND written straight to
+  `/etc/resolv.conf` so networking did not have to be bounced on a storage host.
+  Backup: `network.cfg.bak-dnsfix`.
+- The cert sync is live: `/opt/home-ops/sync-wildcard-cert.py` on cevo, weekly
+  via `/etc/cron.d/traefik-backup-cert-sync` (Mon 04:30), token in
+  `/root/.portainer-token` (0600). Verified end to end — extract → upload →
+  restart, and the spare still served afterwards.
+- **Gatus watches the spare** under group `failover`, so it cannot rot unnoticed:
+  DNS checks against both AdGuards asserting the *answer* (primary must say
+  `.20`, backup must say `.11`), a check that the `local.home` WAN pass-through
+  still is not rewritten, the spare's API, and an end-to-end HTTPS fetch through
+  it with a `Host` header. Note the pre-existing `adguard` endpoint only ever
+  proved the admin UI answered, which says nothing about resolution.
+- Re-run the failover test (stops cevo's traefik+adguard for ~30s):
+  ```
+  ssh cevo 'docker stop traefik adguard'
+  for h in radarr sonarr immich paperless home proxmox; do
+    ip=$(dig +short @192.168.0.12 $h.home.shaunoneill.com | head -1)
+    curl -sk -o /dev/null -w "$h $ip %{http_code}\n" \
+      --resolve $h.home.shaunoneill.com:443:$ip https://$h.home.shaunoneill.com/
+  done
+  ssh cevo 'docker start traefik adguard'
   ```
 - Both use the **`br0` ipvlan** network (parent `br0`, 192.168.0.0/24) for real
   LAN IPs, because **unraid's own webUI owns :80/:443 on 192.168.0.10** and
