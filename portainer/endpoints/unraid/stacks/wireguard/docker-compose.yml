@@ -77,5 +77,15 @@ services:
     #    INIT_ALLOWED_IPS and INIT_IPV4_CIDR all applied on a fresh volume, but
     #    host came up as "" — which silently generates client configs with no
     #    Endpoint line. It was set via POST /api/admin/userconfig instead.
-    #    Check it with GET /api/admin/userconfig before trusting a new client
-    #    config; INIT_HOST above documents the intent but does not enforce it.
+    #    **And the setup wizard overwrites it again**: finishing setup in the
+    #    browser set host to `192.168.0.10`, unraid's LAN IP, which yields
+    #    client configs that only work on the LAN and fail everywhere a VPN is
+    #    actually needed. The correct value is the public name
+    #    `local.home.shaunoneill.com` (A record -> WAN IP, 51820/udp forwarded).
+    #    Nothing warns about this: the tunnel looks fine from inside the house.
+    #    So **re-check host after any wizard run**:
+    #      GET /api/admin/userconfig   (or user_configs_table.host in the db)
+    #    Client configs are rendered on demand from that field
+    #    (`Endpoint = ${userConfig.host}:${userConfig.port}`), so fixing it
+    #    needs no restart and no client recreation — just re-download the
+    #    config or re-scan the QR on the device.

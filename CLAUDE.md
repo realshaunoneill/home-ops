@@ -501,6 +501,19 @@ in either app at all, which is why `/plex/torrent` sits empty).
   traps are that **`device` defaults to the literal `eth0`** (wrong on unraid,
   and settable only in the database) and that **`INIT_HOST` is silently
   ignored** while the other `INIT_*` vars work.
+- **The VPN endpoint host is `local.home.shaunoneill.com`** — a real A record →
+  the WAN IP, with 51820/udp forwarded. It is a separate record from the
+  `*.home.shaunoneill.com` wildcard, so it needs its AdGuard pass-through
+  exception (see AdGuard above) or LAN clients resolve it to `192.168.0.20`.
+  **Completing the wg-easy setup wizard resets this to `192.168.0.10`**
+  (unraid's LAN IP), which produces client configs that work at home and fail
+  everywhere a VPN is actually for — and nothing warns you, because the tunnel
+  tests fine from inside the house. Re-check `user_configs_table.host` after any
+  wizard run. Configs are rendered on demand from that field, so correcting it
+  needs no restart or client recreation, only a re-download / QR re-scan.
+- A client dialling the WAN IP from **inside** the LAN needs NAT hairpinning on
+  the router, which often is not supported. A tunnel that fails at home but
+  works on mobile data is expected and not a misconfiguration.
 - **The three homelable images are grouped into one Renovate PR.** They share a
   version and a versioned API, so a solo frontend bump would leave it talking
   to an older backend; the shared `groupName` makes the bump atomic. Their tags
