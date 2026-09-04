@@ -91,6 +91,7 @@ services:
       - { source: dyn_traefik_dashboard, target: /etc/traefik/dynamic/traefik-dashboard.yml }
       - { source: dyn_unraid, target: /etc/traefik/dynamic/unraid.yml }
       - { source: dyn_wireguard, target: /etc/traefik/dynamic/wireguard.yml }
+      - { source: dyn_modem, target: /etc/traefik/dynamic/modem.yml }
 
     networks:
       - proxy
@@ -456,6 +457,35 @@ configs:
               servers:
                 - url: "http://192.168.0.20:8080"
 
+  dyn_modem:
+    content: |
+      http:
+        routers:
+          modem:
+            rule: "Host(`modem.home.shaunoneill.com`)"
+            entryPoints:
+              - websecure
+            middlewares:
+              # Headers only, no compress. The hub's UI is a JS SPA driving a
+              # REST API; gzip buffering has broken streamed/XHR responses
+              # elsewhere here (MCP, plex), so do not risk it for no gain.
+              - default-secure-headers
+            service: modem
+            tls:
+              certResolver: myresolver
+        services:
+          modem:
+            loadBalancer:
+              servers:
+                # The Virgin Media hub's status page. It lives on the WAN side
+                # in bridge mode, so it is only reachable because
+                # /data/modem-access.sh on the gateway gives eth4 a second
+                # address in 192.168.100.0/24 and SNATs LAN sources into it.
+                # Fronting it here is what makes it usable from a machine whose
+                # default route is captured by a full-tunnel corporate VPN:
+                # *.home.shaunoneill.com resolves to 192.168.0.20, which IS on
+                # the local subnet, so it never enters the tunnel.
+                - url: "http://192.168.100.1"
   dyn_unraid:
     content: |
       http:

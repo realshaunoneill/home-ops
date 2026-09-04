@@ -281,6 +281,17 @@ configs:
             service: traefik-cevo
             tls: {}
 
+          # The Virgin Media hub's status page, on the WAN side in bridge mode.
+          # Reachable only because /data/modem-access.sh on the gateway gives
+          # eth4 a second address in 192.168.100.0/24 and SNATs LAN sources.
+          # Headers only, no compress: it is a JS SPA driving a REST API.
+          modem:
+            rule: "Host(`modem.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-secure-headers]
+            service: modem
+            tls: {}
+
         services:
           # unraid (192.168.0.10) — needs "Host access to custom networks"
           radarr:
@@ -339,3 +350,5 @@ configs:
             loadBalancer: {servers: [{url: "http://192.168.0.20:8001"}]}
           traefik-cevo:
             loadBalancer: {servers: [{url: "http://192.168.0.20:8080"}]}
+          modem:
+            loadBalancer: {servers: [{url: "http://192.168.100.1"}]}
