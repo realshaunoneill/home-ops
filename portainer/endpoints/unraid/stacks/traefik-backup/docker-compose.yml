@@ -1,0 +1,341 @@
+# Warm-spare Traefik on unraid, so a cevo outage does not take every hostname
+# with it. Deliberately NOT a copy of the cevo traefik stack — read the notes.
+#
+# WHY IT HAS ITS OWN LAN IP (192.168.0.11), not host networking:
+#   unraid's own webUI owns :80 and :443 on 192.168.0.10, so host networking
+#   cannot bind them. The `br0` ipvlan network gives this container a real LAN
+#   address with both ports to itself, and leaves the unraid webUI untouched.
+#
+# HARD PREREQUISITE — unraid Settings -> Docker -> "Host access to custom
+# networks: Enabled". ipvlan containers CANNOT reach their own parent host by
+# default. Verified the hard way: from a br0 container at 192.168.0.19,
+# 192.168.0.10:7878 and :80 both FAILED while 192.168.0.20, 192.168.0.245 and
+# 1.1.1.1 all succeeded. Without that setting this stack silently 502s on every
+# unraid-hosted service — which is most of the point of it. Re-verify with:
+#   docker run --rm --network br0 alpine:3.20 nc -z -w4 192.168.0.10 7878
+#
+# WHY THERE IS NO certificatesresolvers BLOCK:
+#   Two Traefiks doing ACME DNS-01 for the same names both write
+#   _acme-challenge.home.shaunoneill.com, which is the duplicate-TXT collision
+#   that returns Cloudflare 81058 and blocks ALL issuance — including cevo's
+#   renewals. So this instance never talks to ACME. It serves the wildcard
+#   cert that cevo already holds, synced out of acme.json as PEM by
+#   sync-wildcard-cert.sh. Routers therefore use a bare `tls: {}` and pick up
+#   the default certificate, rather than `tls.certResolver: myresolver`.
+#
+# ROUTE COVERAGE: every route cevo serves EXCEPT n8n and obsidian, which
+# publish no host port and are only reachable on cevo's docker network. Both
+# run on cevo, so they are gone in the outage this stack exists for anyway.
+# The cevo-hosted routes are included on purpose: clients do not reliably
+# prefer DNS server 1, so some may resolve here while cevo is healthy, and
+# both instances must answer identically or that becomes intermittent 404s.
+services:
+  traefik-backup:
+    image: traefik:v3.7
+    container_name: traefik-backup
+    restart: unless-stopped
+
+    command:
+      - --log.level=INFO
+      - --accesslog=true
+      # File provider only. No docker provider: unraid's containers carry no
+      # traefik labels, and this instance has no business reading a socket.
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      # Same 600s as cevo: the default 60s bounds reading the whole request
+      # body, which kills slow uploads (immich/paperless from a phone).
+      - --entrypoints.websecure.transport.respondingTimeouts.readTimeout=600s
+      # Dashboard on 192.168.0.11:8080 for verifying routes loaded. LAN-only
+      # and unauthenticated, matching cevo's existing arrangement.
+      - --api=true
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --entrypoints.traefik.address=:8080
+
+    networks:
+      br0:
+        ipv4_address: 192.168.0.11
+
+    volumes:
+      # Wildcard cert+key synced from cevo. Read-only: nothing here issues certs.
+      - /mnt/user/appdata/traefik-backup/certs:/certs:ro
+
+    configs:
+      - source: bk_tls
+        target: /etc/traefik/dynamic/tls.yml
+      - source: bk_middlewares
+        target: /etc/traefik/dynamic/middlewares.yml
+      - source: bk_routes
+        target: /etc/traefik/dynamic/routes.yml
+
+networks:
+  br0:
+    external: true
+
+configs:
+  bk_tls:
+    content: |
+      tls:
+        options:
+          default:
+            minVersion: VersionTLS12
+            # Must stay false. With sniStrict true and no matching cert,
+            # Traefik aborts the TLS handshake with no status code, no access
+            # log line and no metric — a silent drop.
+            sniStrict: false
+        stores:
+          default:
+            # The wildcard cevo already holds, synced as PEM. NOT
+            # defaultGeneratedCert, which would need an ACME resolver.
+            defaultCertificate:
+              certFile: /certs/wildcard.crt
+              keyFile: /certs/wildcard.key
+        certificates:
+          - certFile: /certs/wildcard.crt
+            keyFile: /certs/wildcard.key
+
+  bk_middlewares:
+    content: |
+      http:
+        middlewares:
+          default-secure-headers:
+            headers:
+              browserXssFilter: true
+              contentTypeNosniff: true
+              frameDeny: true
+              referrerPolicy: strict-origin-when-cross-origin
+              stsSeconds: 31536000
+              stsIncludeSubdomains: true
+              stsPreload: true
+          default-compress:
+            compress: {}
+          default-chain:
+            chain:
+              middlewares:
+                - default-compress
+                - default-secure-headers
+          plex-web-redirect:
+            redirectRegex:
+              # $ doubled to survive Compose interpolation.
+              regex: "^https?://([^/]+)/?$$"
+              replacement: "https://$${1}/web/index.html#!/?bypass=1"
+              permanent: false
+
+  bk_routes:
+    content: |
+      http:
+        serversTransports:
+          insecure-backend:
+            insecureSkipVerify: true
+
+        routers:
+          # ---- unraid-hosted: the services this stack exists to keep up ----
+          radarr:
+            rule: "Host(`radarr.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: radarr
+            tls: {}
+          sonarr:
+            rule: "Host(`sonarr.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: sonarr
+            tls: {}
+          bazarr:
+            rule: "Host(`bazarr.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: bazarr
+            tls: {}
+          prowlarr:
+            rule: "Host(`prowlarr.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: prowlarr
+            tls: {}
+          nzbget:
+            rule: "Host(`nzbget.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: nzbget
+            tls: {}
+          # Headers only, no compression: Range requests on large already
+          # compressed payloads (see cevo's dyn_middlewares note).
+          immich:
+            rule: "Host(`immich.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-secure-headers]
+            service: immich
+            tls: {}
+          paperless:
+            rule: "Host(`paperless.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-secure-headers]
+            service: paperless
+            tls: {}
+          unraid:
+            rule: "Host(`unraid.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: unraid
+            tls: {}
+          wireguard:
+            rule: "Host(`wireguard.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: wireguard
+            tls: {}
+
+          # ---- other hosts: also survive a cevo outage ----
+          homeassistant:
+            rule: "Host(`home.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: homeassistant
+            tls: {}
+          proxmox:
+            rule: "Host(`proxmox.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: proxmox
+            tls: {}
+          pbs:
+            rule: "Host(`pbs.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: pbs
+            tls: {}
+          clawdbot:
+            rule: "Host(`clawdbot.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: clawdbot
+            tls: {}
+
+          # ---- cevo-hosted: down anyway in the outage, but present so both
+          # ---- instances answer identically while cevo is healthy ----
+          plex:
+            rule: "Host(`plex.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [plex-web-redirect, default-secure-headers]
+            service: plex
+            tls: {}
+          adguard:
+            rule: "Host(`adguard.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: adguard
+            tls: {}
+          grafana:
+            rule: "Host(`grafana.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: grafana
+            tls: {}
+          gatus:
+            rule: "Host(`uptime.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: gatus
+            tls: {}
+          overseerr:
+            rule: "Host(`overseerr.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: overseerr
+            tls: {}
+          prometheus:
+            rule: "Host(`prometheus.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: prometheus
+            tls: {}
+          tautulli:
+            rule: "Host(`tautulli.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: tautulli
+            tls: {}
+          homelable:
+            rule: "Host(`homelable.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: homelable
+            tls: {}
+          homelable-mcp:
+            rule: "Host(`homelable-mcp.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            # Chain adds compress, and gzip buffering breaks streamed MCP.
+            middlewares: [default-secure-headers]
+            service: homelable-mcp
+            tls: {}
+          traefik-cevo:
+            rule: "Host(`traefik.home.shaunoneill.com`)"
+            entryPoints: [websecure]
+            middlewares: [default-chain]
+            service: traefik-cevo
+            tls: {}
+
+        services:
+          # unraid (192.168.0.10) — needs "Host access to custom networks"
+          radarr:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:7878"}]}
+          sonarr:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:8989"}]}
+          bazarr:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:6767"}]}
+          prowlarr:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:9696"}]}
+          nzbget:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:6789"}]}
+          immich:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:2283"}]}
+          paperless:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:8010"}]}
+          unraid:
+            loadBalancer: {servers: [{url: "http://192.168.0.10"}]}
+          wireguard:
+            loadBalancer: {servers: [{url: "http://192.168.0.10:51821"}]}
+
+          # other hosts
+          homeassistant:
+            loadBalancer: {servers: [{url: "http://192.168.0.245:8123"}]}
+          proxmox:
+            loadBalancer:
+              servers: [{url: "https://192.168.0.200:8006"}]
+              serversTransport: insecure-backend
+          pbs:
+            loadBalancer:
+              servers: [{url: "https://192.168.0.220:8007"}]
+              serversTransport: insecure-backend
+          clawdbot:
+            loadBalancer:
+              servers: [{url: "https://192.168.0.30:18789"}]
+              serversTransport: insecure-backend
+
+          # cevo (192.168.0.20) — published host ports only
+          plex:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:32400"}]}
+          adguard:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:3000"}]}
+          grafana:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:3300"}]}
+          gatus:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:8092"}]}
+          overseerr:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:5055"}]}
+          prometheus:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:9090"}]}
+          tautulli:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:8181"}]}
+          homelable:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:3002"}]}
+          homelable-mcp:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:8001"}]}
+          traefik-cevo:
+            loadBalancer: {servers: [{url: "http://192.168.0.20:8080"}]}

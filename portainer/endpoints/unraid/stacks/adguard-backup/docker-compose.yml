@@ -1,0 +1,64 @@
+# Second AdGuard Home, on unraid, as the DNS half of cevo failover.
+#
+# WHY THIS MATTERS MORE THAN THE TRAEFIK SPARE
+#   UniFi DHCP hands every client dhcpd_dns_1 = 192.168.0.20 (AdGuard, on
+#   cevo) and dhcpd_dns_2 = 1.1.1.1. So if cevo dies, AdGuard dies with it and
+#   clients fall back to Cloudflare — which resolves *.home.shaunoneill.com
+#   from the PUBLIC wildcard to 192.168.0.20, i.e. straight back at the dead
+#   host. Every internal name pointed at cevo no matter what else was running.
+#   This instance answers with 192.168.0.11 (traefik-backup) instead, so names
+#   follow the surviving host. DNS is the failover mechanism; there is no VIP.
+#
+# AFTER DEPLOYING, set UniFi DHCP DNS on both the Homelab and Default networks
+# to:  192.168.0.20, 192.168.0.12, 1.1.1.1
+#   Keep 1.1.1.1 last as a genuine last resort. Note clients do NOT reliably
+#   prefer server 1 — some query in parallel or round-robin — which is exactly
+#   why traefik-backup carries the full route set and not just unraid's.
+#
+# OWN LAN IP, NOT HOST NETWORKING: unraid historically had something bound to
+# 0.0.0.0:53 (the original AdGuard deploy failed there with "address already in
+# use", which is why the primary lives on cevo). A br0 ipvlan address sidesteps
+# that entirely — :53 on 192.168.0.12 belongs to this container alone.
+#
+# Unlike traefik-backup, this stack does NOT need unraid's "Host access to
+# custom networks": it only answers clients and forwards upstream, and never
+# has to reach 192.168.0.10.
+#
+# CONFIG IS NOT REPO-DRIVEN. AdGuard rewrites its own YAML, so the same rule as
+# the primary applies: STOP THE CONTAINER BEFORE EDITING
+# /mnt/user/appdata/adguard-backup/conf/AdGuardHome.yaml or it will clobber
+# you. Seed it by copying cevo's /opt/adguard/conf/AdGuardHome.yaml (which
+# brings the filter lists, rate-limit whitelist and the local./mc.
+# pass-through exceptions with it) and changing exactly three things:
+#     dns.bind_hosts:            192.168.0.20  ->  192.168.0.12
+#     rewrite home.shaunoneill.com   answer:   ->  192.168.0.11
+#     rewrite *.home.shaunoneill.com answer:   ->  192.168.0.11
+#   Leave the local.home / mc.home exceptions alone — they must keep resolving
+#   upstream to the WAN IP, or WireGuard and Minecraft break.
+#   That file contains a bcrypt admin hash: never commit it.
+services:
+  adguard-backup:
+    # Pinned to the same tag as the primary on cevo, on purpose: a config
+    # cloned from that instance should be read by the same version.
+    image: adguard/adguardhome:v0.107.79
+    container_name: adguard-backup
+    restart: unless-stopped
+
+    networks:
+      br0:
+        ipv4_address: 192.168.0.12
+
+    # No `ports:` — with its own LAN address every port is already its own.
+    # :53 for DNS, :3000 for the admin UI (same port as the primary, so the
+    # existing adguard.home.shaunoneill.com route shape stays familiar).
+
+    volumes:
+      - /mnt/user/appdata/adguard-backup/conf:/opt/adguardhome/conf
+      - /mnt/user/appdata/adguard-backup/work:/opt/adguardhome/work
+
+    environment:
+      - TZ=Europe/Dublin
+
+networks:
+  br0:
+    external: true
