@@ -59,7 +59,7 @@ services:
     container_name: immich_postgres
     # Must be the immich-app postgres image (vectorchord + pgvector extensions).
     # A vanilla postgres image will fail migrations.
-    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    image: ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvectors0.2.0
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
