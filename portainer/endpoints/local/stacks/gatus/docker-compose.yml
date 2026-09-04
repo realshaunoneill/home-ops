@@ -14,6 +14,30 @@ services:
       - GATUS_PUSHOVER_APPLICATION_TOKEN=${GATUS_PUSHOVER_APPLICATION_TOKEN}
       - GATUS_PUSHOVER_USER_KEY=${GATUS_PUSHOVER_USER_KEY}
       - GATUS_PUSHOVER_DEVICE=${GATUS_PUSHOVER_DEVICE:-}
+
+    # Belt-and-braces resolver pinning. The host's netplan nameservers were
+    # `192.168.0.10 192.168.0.5 8.8.8.8`, where unraid REFUSES :53 and
+    # 192.168.0.5 does not exist — so every lookup walked two dead servers.
+    # Because /etc/resolv.conf is the systemd-resolved stub, Docker's embedded
+    # resolver (127.0.0.11) forwarded to that same broken list, and every
+    # hostname-based check inherited it: p50 45ms but a fat tail at exactly
+    # 10001ms, the client timeout. 15-25% of probes failed.
+    # The host config is now fixed (50-cloud-init.yaml -> AdGuard, Cloudflare),
+    # which is the real fix; this pin keeps Gatus honest if that ever regresses,
+    # since a broken resolver here makes the monitoring lie rather than fail.
+    # On a bridge network `dns:` sets the *upstream* for 127.0.0.11 rather than
+    # replacing it, so Docker service discovery still works — verified that the
+    # `cloudflared` check below still resolves its container alias.
+    dns:
+      - 192.168.0.20   # AdGuard on this host (split-horizon rewrites, ~0ms)
+      - 1.1.1.1        # backstop if the AdGuard container is down
+    dns_opt:
+      # Gatus fires every check in one synchronised burst, and A+AAAA in
+      # parallel doubles it; single-request serialises the pair so the burst
+      # does not trip AdGuard's per-subnet rate limit.
+      - single-request
+      - timeout:2
+
     volumes:
       # Monitor definitions are versioned in git next to this compose file.
       # Requires the stack to be created in Portainer with "Enable relative
