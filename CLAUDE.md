@@ -400,6 +400,58 @@ containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
 - There is also a HACS integration (`Pouzor/homelable-hacs`) that runs natively
   inside Home Assistant. Not used here — this is the standalone Docker stack.
 
+## Media apps (Radarr / Sonarr / NZBGet)
+
+None of this is repo-managed — it lives in each app's own database, so it is
+only reachable over their APIs. Keys are in `.service-api-keys.local.env`
+(gitignored): `RADARR_API_KEY`, `SONARR_API_KEY`, `NZBGET_USERNAME/PASSWORD`.
+Both apps are usenet-only in practice: **NZBGet is the only enabled download
+client** (SABnzbd is defined but disabled, and transmission is not registered
+in either app at all, which is why `/plex/torrent` sits empty).
+
+- **Fake `.exe` releases are blocked by a Release Profile in both apps
+  (2026-09-04).** Sonarr grabbed six of them between 08-31 and 09-02 —
+  `Reacher`, `Lioness` ×2, `Ted.Lasso`, `Its.Always.Sunny`, `The.Terminal.List`
+  — all named `<release>.exe-[N-Z-B]-xpost`, all of which downloaded and then
+  failed to import. Radarr had **zero** (movies get grabbed far less: 11 vs 457
+  in the same month). The ignored term, on both, applies to all items
+  (`tags: []`):
+  ```
+  /\.(exe|msi|scr|pif|lnk|vbs|vbe|jse|wsf|wsh|hta|cpl|cmd)\b/i
+  ```
+  - **Do NOT add `.com`, `.bat`, `.iso`, `.js` or `.ps1` to that regex.** They
+    collide with real release names — validated against 3590 historical titles,
+    where a broader pattern also matched
+    `It.Chapter.Two.2019...6CH-MkvHub.Com-Obfuscated`. `.bat` hits real titles
+    ("The Bat", "BAT*21") and `.iso` is legitimate for full-disc releases.
+  - **Do NOT filter on `[N-Z-B]` or `-xpost`.** They look like the malware
+    signature but are not: `Backrooms.[2026]...mkv-[N-Z-B]-xpost` imported fine.
+    Key on the executable extension only.
+  - **Radarr has no UI page for Release Profiles** — the feature was dropped
+    from the frontend but `ReleaseProfileService` and
+    `ReleaseRestrictionsSpecification` are still in `Radarr.Core.dll` and still
+    enforce. So the Radarr rule is real but **invisible in the web UI**; manage
+    it at `/api/v3/releaseprofile`. Sonarr shows its own under
+    Settings → Profiles → Release Profiles.
+  - Verify with an interactive search rather than trusting the config — a
+    rejected release reports the reason:
+    `Contains these ignored terms: /\.(exe|...)/i`.
+- **NZBGet `ExtCleanupDisk` now also deletes executables**, as defence in depth:
+  the release profiles match the *title*, so they cannot catch a clean-looking
+  release that unpacks an `.exe`. `.bat` and `.com` ARE safe to include here,
+  unlike in the title regex, because this matches real files on disk.
+- **`saveconfig` over the NZBGet JSON-RPC API is a trap — do not use it.**
+  The `config` method returns four read-only informational entries
+  (`ConfigFile`, `AppBin`, `AppDir`, `Version`); handing them back to
+  `saveconfig` writes them into `nzbget.conf`, where they are **not valid
+  options**. On the next reload NZBGet logs `Invalid option "ConfigFile"` ×4 and
+  **`Pausing all activities due to errors in configuration`** — downloads stop,
+  while Radarr/Sonarr's "Test" still returns 200 and reports no health warning,
+  so nothing surfaces the breakage. Edit `/config/nzbget.conf` directly instead
+  (`sed` the one line, keep it `chown 99:100`) and then call `reload`. Confirm
+  with `/jsonrpc/status` → `ServerPaused=false` and a clean `/jsonrpc/log`.
+  Backup of the pre-change file: `/config/nzbget.conf.bak-extcleanup`.
+
 ## Version pinning / Renovate
 
 - **Renovate GitHub App** is active (`renovate.json`) and is the **only** image
