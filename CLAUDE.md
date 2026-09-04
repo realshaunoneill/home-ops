@@ -327,8 +327,13 @@ off, so image digests don't silently update).
 - `querylog.interval` was `90d`, which had grown `querylog.json` to **1.5 GB**;
   now `7d`. Worth watching — a full disk here takes down DNS for the LAN.
 - **`aaaa_disabled: true`** (2026-09-04). Neither cevo nor unraid has an IPv6
-  default route — there is no IPv6 upstream on this network at all — so AAAA
-  records were only ever leading clients into a black hole. It mattered most
+  default route, so AAAA records were only ever leading LAN clients into a black
+  hole. **Correction to an earlier note here:** it is not true that there is no
+  IPv6 at all — the gateway's WAN *does* hold one
+  (`/api/system` → `wans[0].ipv6 = 2a02:8081:...`, so the ISP provides it). It
+  simply is not delegated to the LAN, and `PROTOCOL="ipv4"` on unraid. So
+  suppressing AAAA remains correct **today**, but the trigger to revisit it is
+  enabling IPv6 on the LAN networks, not waiting for the ISP. It mattered most
   over WireGuard: the tunnel hands out `AllowedIPs 0.0.0.0/0, ::/0`, so a phone
   on an IPv6-preferring carrier routed IPv6 into the tunnel and had to wait for
   Happy Eyeballs to time out before falling back to IPv4. Suppressing AAAA
