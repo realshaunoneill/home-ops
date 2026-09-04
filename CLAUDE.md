@@ -69,6 +69,27 @@ Later additions with GitOps enabled: overseerr, cloudflared, homelable.
 `master` auto-deploys within ~5 min (compose changes only — "Re-pull image" is
 off, so image digests don't silently update).
 
+- **Never write a bare `[STATUS] < 400` condition in Gatus.** A failed probe
+  reports status `0`, and `0 < 400` is **true**, so the condition passes when a
+  service is completely unreachable. Until 2026-09-04 twelve of the seventeen
+  endpoints had only that condition and each recorded **13-26 dead probes as
+  successes** — they would not have alerted during a real outage. The three that
+  did alert (plex, n8n, homelable) were the only ones carrying
+  `[CERTIFICATE_EXPIRATION] > 168h`, which fails on a dead connection because
+  cert validity reads `0s`. So the alerts blamed certificates for what was
+  really DNS, and the "healthy" endpoints were the broken part of the setup.
+  Every endpoint now leads with **`[CONNECTED] == true`**, and every https
+  endpoint carries the cert condition. Verified in a throwaway v5.36.0 container
+  before deploying — `[CONNECTED]` does resolve, it is not treated as a literal.
+- Gatus fires **all** checks in one synchronised burst at boot, and Go queries A
+  and AAAA in parallel, so ~17 endpoints means ~34 concurrent lookups. That is
+  what tripped AdGuard's rate limit; the stack now sets
+  `dns_opt: [single-request, timeout:2]` to serialise the pair. Failures used to
+  cluster visibly — up to 11 endpoints in the same minute, which is the
+  signature of a shared resolver problem rather than 11 sick services.
+- Durations are the quickest way to spot this class of fault: healthy is p50
+  ~23ms, and a **fat tail at exactly `10001ms` is the Gatus client timeout**,
+  i.e. DNS stalling, not a slow backend.
 - **Editing `gatus/config/config.yaml` needs a manual `docker restart gatus`.**
   The compose file itself doesn't change, so the 5m poll updates the git
   checkout and advances the stack's `ConfigHash` — and stops there. Gatus only
@@ -106,6 +127,20 @@ off, so image digests don't silently update).
   To change it, `POST /api/stacks/{id}/git?endpointId=N` with
   `autoUpdate.forceUpdate=false` — and re-supply `env` in the same body
   (same wipe caveat as the redeploy API, below).
+- **`POST /api/stacks/{id}/git` CLEARS `AutoUpdate.JobID`, which silently kills
+  GitOps polling for that stack.** Hit on wireguard (30) on 2026-09-04 while
+  adding an env var: `Interval` still reads `5m` so the stack *looks* like it is
+  polling, but the scheduler job is gone and pushes stop deploying. Re-POSTing,
+  including toggling `autoUpdate` to `null` and back, does **not** re-create it.
+  Compare against a healthy stack — gatus (46) has `JobID: "10"`; an empty
+  string is the tell:
+  ```
+  curl -sS -H "X-API-Key: $PORTAINER_TOKEN" http://192.168.0.20:9000/api/stacks \
+    | jq -r '.[] | "\(.Id) \(.Name) jobid=\(.AutoUpdate.JobID // "-")"'
+  ```
+  Fix it in the **UI** — turn GitOps updates off and on again on the stack. So
+  prefer setting stack env in the UI, or re-check `JobID` afterwards if you use
+  the API.
 
 ## Secrets
 
@@ -218,32 +253,80 @@ off, so image digests don't silently update).
     than depending on WAN NAT.
   - Endpoint is `local.home.shaunoneill.com:51820` → WAN IP; port 51820/udp is
     forwarded. VPN subnet is `10.8.0.0/24`.
-- **cevo's own resolver list is broken, and two of its three upstreams are dead.**
-  `resolvectl status` on `192.168.0.20` shows
+- **cevo's resolver list was broken and is now FIXED at the source
+  (2026-09-04).** It used to be
   `DNS Servers: 192.168.0.10 192.168.0.5 8.8.8.8`, where **unraid (`.10`)
   actively REFUSES :53** and **`192.168.0.5` does not exist at all** (no ping,
-  absent from a full LAN scan), so it black-holes. Every lookup on the box walks
-  that list before reaching `8.8.8.8`. Measured from a container on this host:
-  **1 failure in 20 lookups, worst case 11.9s.** Note what this also means —
-  cevo does **not** use AdGuard, the resolver it hosts.
-  The failure mode is nasty because it is intermittent and blames the wrong
-  thing: it took out all 20 hostname-based status checks in homelable (5s
-  timeout) while `curl` from the same host succeeded every time. Anything on
-  cevo with a short DNS timeout is exposed to this. homelable pins
-  `dns: [192.168.0.20, 1.1.1.1]` to sidestep it; **the host config itself is
-  still wrong and worth fixing at the source** (point systemd-resolved at
-  AdGuard and drop `.5`).
+  absent from a full LAN scan), so it black-holed. Every lookup on the box
+  walked that list before reaching `8.8.8.8`. Measured from a container on this
+  host: **1 failure in 20 lookups, worst case 11.9s.**
+  - **The dead servers were STATIC, in `/etc/netplan/50-cloud-init.yaml`** —
+    not DHCP, which is where you would look first. They were set on both
+    `eth0` and `eth1`. Now `192.168.0.20` (AdGuard), `1.1.1.1`, `1.0.0.1`.
+  - **A `99-*.yaml` netplan override does NOT work for this.** Netplan
+    *appends* `nameservers.addresses` across files rather than replacing them,
+    so the dead servers stayed at the head of the list and nothing improved.
+    Verify with `grep ^DNS= /run/systemd/network/10-netplan-eth0.network`.
+    The source file has to be edited.
+  - `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg` now pins that file,
+    because cloud-init regenerates it on reboot and would restore the dead
+    servers. Backup at `50-cloud-init.yaml.bak-dnsfix`.
+  - Also removed `eth1`'s default route, which duplicated `eth0`'s and made
+    `netplan generate` fail with `Conflicting default route declarations`.
+    `eth1` does not exist on this VM (its `match` MAC matches nothing).
+  - **This was never only a host problem — it broke every container too.**
+    `/etc/resolv.conf` is the systemd-resolved stub (`127.0.0.53`), and Docker
+    cannot hand a loopback address to a container, so dockerd reads
+    **`/run/systemd/resolve/resolv.conf`** instead and forwards the embedded
+    resolver (`127.0.0.11`) at whatever that file lists. That is generated from
+    netplan, so the dead servers were the upstream for every bridge container
+    on the host. Check that file, not `/etc/resolv.conf`, when container DNS
+    misbehaves.
+  - The failure mode is nasty because it is intermittent and blames the wrong
+    thing: it took out all 20 hostname-based status checks in homelable (5s
+    timeout) while `curl` from the same host succeeded every time, and it made
+    Gatus flap for months (see the Gatus notes under GitOps updates).
+    homelable and gatus both still pin `dns: [192.168.0.20, 1.1.1.1]` — keep
+    them, they are cheap insurance against this regressing silently.
+  - Verified after the fix: 17 concurrent lookups from a bridge container,
+    3 cycles, **0 failures, max 9ms** (was a 15-25% failure rate with a 10s
+    tail).
 - **AdGuard Home** (LOCAL host `192.168.0.20`, `network_mode: host`, DNS :53, UI
   :3000): intended as a network-wide resolver. Runs on local, NOT unraid — the
   unraid host already had something bound to `0.0.0.0:53` (deploy failed with
   `bind: address already in use`); on local, systemd-resolved only holds the
   loopback `127.0.0.53`, so `0.0.0.0:53` is free. If AdGuard still can't bind
   :53 on local, set `DNSStubListener=no` in `/etc/systemd/resolved.conf`.
-  Can host **DNS rewrites** `*.home.shaunoneill.com → 192.168.0.20` for clean
-  split-horizon (internal names resolve locally, don't leak to public DNS).
-  Point WireGuard `WG_DEFAULT_DNS` and/or router DHCP DNS at it (`192.168.0.20`)
-  once set up. AdGuard writes its own config after the first-run wizard — not
-  repo-driven; only host-path volumes are versioned.
+  AdGuard writes its own config after the first-run wizard — **not repo-driven**;
+  only host-path volumes are versioned. Config lives at
+  `/opt/adguard/conf/AdGuardHome.yaml`; **stop the container before editing it**,
+  or it will overwrite your changes. Backups from the 2026-09-04 work:
+  `AdGuardHome.yaml.bak-dnsfix` and `.bak-rewrites`.
+- **Split-horizon rewrites are now ENABLED** (`*.home.shaunoneill.com` and the
+  apex → `192.168.0.20`). They existed but sat at `enabled: false`, so every
+  internal lookup made a WAN round trip to Quad9 over DoH. Now ~0ms and local.
+  - **The wildcard shadows any name in the zone that points elsewhere.** Two do,
+    both at the WAN IP: `local.home.shaunoneill.com` (the WireGuard endpoint)
+    and `mc.home.shaunoneill.com` (Minecraft, port-forwarded). Both now have
+    **pass-through exception rewrites**, which is `answer` set equal to the
+    domain itself — that makes AdGuard resolve upstream instead of rewriting,
+    so the dynamic WAN IP is not hardcoded anywhere. **Add an exception for any
+    future record that is not `192.168.0.20`**, or it silently resolves to the
+    wrong host. Enumerate them from Cloudflare, don't guess.
+  - The wildcard also swallows `TXT` for `_acme-challenge.home.shaunoneill.com`
+    (AdGuard answers empty; `1.1.1.1` returns the real record). **Harmless
+    only because** Traefik pins lego to
+    `--certificatesresolvers.myresolver.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53`
+    and so never asks AdGuard. Do not remove that flag.
+- **`ratelimit` was 20 q/s and is now 200, with `127.0.0.1` and `192.168.0.20`
+  whitelisted.** The trap is `ratelimit_subnet_len_ipv4: 24`: clients are
+  bucketed per /24, so the **entire LAN shared one 20 q/s allowance**, and this
+  host aggregates every container's DNS through the embedded resolver. Bursty
+  clients (Gatus resolves ~17 names at once) silently lost queries — AdGuard
+  drops them rather than refusing, so it looks like packet loss.
+- `querylog.interval` was `90d`, which had grown `querylog.json` to **1.5 GB**;
+  now `7d`. Worth watching — a full disk here takes down DNS for the LAN.
+- Point router DHCP DNS at `192.168.0.20` to finish the split-horizon story.
 
 ## Cloudflare Tunnel (cloudflared)
 
@@ -354,11 +437,18 @@ containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
   **re-verify it if you add an image whose tags look different**. Failure mode
   is now benign: a non-conforming format means no updates, visible as a
   Dependency Dashboard warning, rather than a wrong-tag deploy.
-- **wg-easy 14 → 15 is a migration, not a tag bump.** It was merged as a major
-  on 2026-08-31 and crash-looped every start with `You are using an invalid
-  Configuration for wg-easy ... migrate/from-14-to-15/`, taking the VPN down;
-  reverted to `14`. It exits before reading config, so nothing was migrated.
-  Do it deliberately, following upstream's 14→15 guide.
+- **wg-easy is now on 15 and the migration is DONE (2026-09-04).** History worth
+  knowing: #208 bumped it to 15 and it crash-looped with `You are using an
+  invalid Configuration for wg-easy ... migrate/from-14-to-15/`, taking the VPN
+  down; `fb9f55c` reverted it. **#212 then re-merged 15**, and `9fbc238`
+  refactored the compose to suit it — dropping every `WG_*` env var, because v15
+  genuinely does not read them. Nothing replaced them, so the VPN sat with
+  **zero configured peers for four days** while the Gatus `wireguard-ui` check
+  stayed green (that check only ever proved the web UI was up, never the
+  tunnel). See `wireguard/docker-compose.yml` for the full v15 notes; the two
+  traps are that **`device` defaults to the literal `eth0`** (wrong on unraid,
+  and settable only in the database) and that **`INIT_HOST` is silently
+  ignored** while the other `INIT_*` vars work.
 - **The three homelable images are grouped into one Renovate PR.** They share a
   version and a versioned API, so a solo frontend bump would leave it talking
   to an older backend; the shared `groupName` makes the bump atomic. Their tags

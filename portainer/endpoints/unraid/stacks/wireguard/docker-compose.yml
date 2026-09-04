@@ -56,15 +56,26 @@ services:
       - NET_ADMIN
       - SYS_MODULE
 
-    # KNOWN GAP — NAT masquerade interface.
-    # unraid bridges its NIC as br0 and the default route is via br0, but
-    # wg-easy generates its PostUp/PostDown hooks against eth0, so
-    # `-s 10.8.0.0/24 -o eth0 -j MASQUERADE` never matches and VPN->internet
-    # traffic is not NATed (LAN access still works, which is why this looks
-    # like a DNS or routing problem rather than a NAT one).
-    # v14 fixed this declaratively with WG_DEVICE=br0. v15 has NO equivalent
-    # env var — the hooks live in wg-easy.db and are edited in the UI under
-    # Admin -> Interface, so this cannot be expressed here. It is applied
-    # out-of-band and MUST be re-applied if the volume is ever re-seeded.
-    # Verify with: iptables -t nat -S POSTROUTING | grep 10.8.0.0
-    # Expect `-o br0`, not `-o eth0`.
+    # KNOWN GAP — two settings live in wg-easy.db and CANNOT be set from here.
+    # Both must be re-applied by hand if the volume is ever re-seeded.
+    #
+    # 1. NAT masquerade interface. unraid bridges its NIC as br0 and the
+    #    default route is via br0, but `interfaces_table.device` defaults to
+    #    the literal 'eth0' (set by migration 0001, not auto-detected), and the
+    #    hooks render it as `-o {{device}}`. So the rule becomes
+    #    `-s 10.8.0.0/24 -o eth0 -j MASQUERADE`, never matches, and
+    #    VPN->internet traffic is not NATed. LAN access still works, which is
+    #    why this presents as a DNS or routing fault rather than a NAT one.
+    #    v14 fixed it declaratively with WG_DEVICE=br0. v15 has no env var and
+    #    no API/UI route for it — /api/admin/hooks only exposes the template
+    #    text, not `device`. It was set directly in the database:
+    #      UPDATE interfaces_table SET device='br0' WHERE name='wg0';
+    #    then the container restarted so wg-quick re-runs PostUp. Verify with
+    #    `iptables -t nat -S POSTROUTING | grep 10.8.0.0` — expect `-o br0`.
+    #
+    # 2. INIT_HOST is NOT honoured, unlike the other INIT_* vars. INIT_DNS,
+    #    INIT_ALLOWED_IPS and INIT_IPV4_CIDR all applied on a fresh volume, but
+    #    host came up as "" — which silently generates client configs with no
+    #    Endpoint line. It was set via POST /api/admin/userconfig instead.
+    #    Check it with GET /api/admin/userconfig before trusting a new client
+    #    config; INIT_HOST above documents the intent but does not enforce it.
