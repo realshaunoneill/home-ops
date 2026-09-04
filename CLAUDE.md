@@ -453,6 +453,42 @@ recurring complaints.
   side address in that range, which UniFi does not expose — so use a machine
   plugged straight into the hub with a static `192.168.100.x`. The renumber is
   still worth having: the overlap was a latent trap.
+- **WAN port 5 is pinned to 1 Gbps (2026-09-04).** It is a 2.5GBASE-T port and
+  was negotiating 2500 against the hub, but the ISP service is 1 Gbps so the
+  extra rate bought nothing — and 2.5GBASE-T is far more sensitive to
+  cable/PHY marginality than 1000BASE-T, which is a known cause of the
+  intermittent WAN drops being alerted on. The kernel log shows a real flap
+  (`nss-dp ... eth4: PHY Link is down` then up 3s later), so those alerts were
+  **not** purely the DNS-monitor false positives diagnosed earlier — revise that
+  note accordingly: there were both.
+  - Set via `port_overrides` on the device (`PUT /rest/device/<id>` with
+    `{port_idx: 5, speed: 1000, full_duplex: true, autoneg: false}`), NOT
+    `ethtool`. **`ethtool` on this interface reports nonsense** — it claims
+    `Supported link modes: 10baseT/Half 10baseT/Full` and a 100baseT link
+    partner while actually running at 2500. The Qualcomm `nss-dp` driver does
+    not expose real PHY caps, so trust `/sys/class/net/eth4/speed` and the
+    controller instead.
+  - Applying it bounces the link. 1000BASE-T requires autoneg, so a forced speed
+    can fail to link at all; the change was made with automatic revert on
+    failure. It came up at 1000 full duplex in under 9s, WAN IP retained.
+- **The modem/hub IS now reachable from the LAN at `http://192.168.100.1`** —
+  it needs a login, and identifies as a DOCSIS device in "modem mode".
+  - Renumbering Guest off `192.168.100.0/24` was necessary but **not
+    sufficient**, and a static route is **not** the answer: the gateway sources
+    from `89.100.220.88`, which is outside the hub's subnet, so it cannot reply.
+    What works is giving `eth4` a **second address in the hub's subnet**
+    (`192.168.100.2/24`) plus SNAT so LAN clients can use it.
+  - UniFi uses per-interface policy routing; without an explicit route the WAN
+    table (`201.eth4`) sends `192.168.100.0/24` off to the ISP.
+  - **None of it is sticky**, which is the important part: a WAN link bounce
+    flushes the address (observed — pinning the port to 1G wiped it), and UniFi
+    rewrites iptables on any network config change. So `unifi/modem-access.sh`
+    lives at **`/data/modem-access.sh`** on the gateway (that path survives
+    firmware upgrades) and runs **every minute from `/etc/cron.d/modem-access`**.
+    Everything in it is idempotent. Verified self-healing: deleted the address
+    and the SNAT rule, and access was restored within 36s.
+  - `/etc/cron.d` does NOT survive a firmware upgrade. After one, re-add:
+    `echo '* * * * * root /data/modem-access.sh' > /etc/cron.d/modem-access`
 - API notes for this version (Network 10.6): login is `POST /api/auth/login`,
   everything else is under `/proxy/network/api/s/<site>/`, and non-GET calls
   need the `X-Csrf-Token` from the login response. **`stat/event` and
