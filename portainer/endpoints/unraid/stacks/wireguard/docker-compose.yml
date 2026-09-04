@@ -1,14 +1,53 @@
 services:
   wg-easy:
+    # v15 is a rewrite: the WG_* env vars from v14 are gone and configuration
+    # lives in /etc/wireguard/wg-easy.db, set up on first boot. The INIT_* vars
+    # below are how that first boot is driven from this repo instead of by hand
+    # in the web UI. They are ONLY read when the volume has no database — once
+    # wg-easy.db exists they are ignored, so changing one here has no effect on
+    # a running install. To re-seed, stop the container, move the volume
+    # contents aside, and start it again.
     image: ghcr.io/wg-easy/wg-easy:15
     container_name: wg-easy
     restart: unless-stopped
 
+    # Required: the scanner/NAT work needs a real place on the LAN, and unraid
+    # bridges its NIC as br0 (see the masquerade note at the bottom).
     network_mode: host
 
     environment:
+      # --- web UI ---
+      # Admin UI port. Traefik routes wireguard.home.shaunoneill.com here (see
+      # dyn_wireguard in the traefik stack) and terminates TLS, so the UI itself
+      # is served over plain http on the LAN — hence INSECURE.
       - PORT=51821
       - INSECURE=true
+
+      # --- one-time setup (see note above) ---
+      - INIT_ENABLED=true
+      - INIT_USERNAME=admin
+      # Never commit this. Stored on the stack's Environment variables in
+      # Portainer. The :? guard means a missing value fails the deploy instead
+      # of silently bringing up an admin UI with no password — same reasoning as
+      # homelable. Keep it free of `$`: Portainer interpolates it, in the API as
+      # well as the UI panel.
+      - INIT_PASSWORD=${WG_INIT_PASSWORD:?set WG_INIT_PASSWORD on the wireguard stack env in Portainer}
+      # Endpoint written into generated client configs. Public A record ->
+      # the WAN IP, with 51820/udp forwarded to this host. Deliberately NOT a
+      # *.home.shaunoneill.com name: those are rewritten to 192.168.0.20 by
+      # AdGuard for split-horizon, which would be the wrong host entirely.
+      # local.* and mc.* are excluded from that rewrite for this reason.
+      - INIT_HOST=local.home.shaunoneill.com
+      # AdGuard Home on the local host, so VPN clients get filtering and
+      # resolve internal names via a LAN resolver rather than depending on
+      # WAN NAT back out of the tunnel.
+      - INIT_DNS=192.168.0.20
+      - INIT_ALLOWED_IPS=0.0.0.0/0,::/0
+      - INIT_IPV4_CIDR=10.8.0.0/24
+      # INIT_PORT is deliberately unset: it is the WireGuard listen port and its
+      # default is already 51820, which is what is port-forwarded. The minified
+      # v15 bundle does not make the PORT/INIT_PORT distinction verifiable, so
+      # the default is left alone rather than guessed at.
 
     volumes:
       - /mnt/user/appdata/wg-easy:/etc/wireguard
@@ -16,3 +55,16 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
+
+    # KNOWN GAP — NAT masquerade interface.
+    # unraid bridges its NIC as br0 and the default route is via br0, but
+    # wg-easy generates its PostUp/PostDown hooks against eth0, so
+    # `-s 10.8.0.0/24 -o eth0 -j MASQUERADE` never matches and VPN->internet
+    # traffic is not NATed (LAN access still works, which is why this looks
+    # like a DNS or routing problem rather than a NAT one).
+    # v14 fixed this declaratively with WG_DEVICE=br0. v15 has NO equivalent
+    # env var — the hooks live in wg-easy.db and are edited in the UI under
+    # Admin -> Interface, so this cannot be expressed here. It is applied
+    # out-of-band and MUST be re-applied if the volume is ever re-seeded.
+    # Verify with: iptables -t nat -S POSTROUTING | grep 10.8.0.0
+    # Expect `-o br0`, not `-o eth0`.
