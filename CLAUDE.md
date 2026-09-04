@@ -411,6 +411,51 @@ containers from one version: `homelable-backend`, `-frontend`, `-mcp`.
 - There is also a HACS integration (`Pouzor/homelable-hacs`) that runs natively
   inside Home Assistant. Not used here — this is the standalone Docker stack.
 
+## UniFi (Cloud Gateway Ultra at 192.168.0.1)
+
+The gateway **is** the controller — UniFi Network runs on it, so every gateway
+reboot takes the controller with it. That single fact explains two separate
+recurring complaints.
+
+- **Three VLANs**, all DHCP-served by the gateway:
+  `Default 192.168.2.0/24` (untagged), `Guest 192.168.20.0/24` (VLAN 2),
+  `Homelab 192.168.0.0/24` (VLAN 3). Two SSIDs: `PrivLab` → Homelab,
+  `Invalid Network` (yes, really) → Default. **Nothing uses the Guest network.**
+  WAN is `89.100.220.88/24` on `eth4`, ISP reported as Play Broadband /
+  Liberty Global (Virgin Media's parent), the hub being in **bridge mode**.
+- **HA's "UniFi lost connection" errors are gateway reboots, not a fault.**
+  Measured from HA's recorder: 21 drops in 12 days but only **4 incidents**,
+  each a ~2-3 min reconnect burst. Two of them (03:09 and 03:55 local) line up
+  with **`auto_upgrade: true, auto_upgrade_hour: 3`**; one was the UniFi OS
+  10.5.67 → 10.6.101 upgrade. Switches and APs had uptimes of weeks throughout,
+  so only the gateway restarted. It self-heals; nothing to fix.
+- **"Internet disruption" alerts are false positives from the same reboots.**
+  The WAN has six uptime monitors and only the **DNS-type** ones alert:
+  `1.1.1.1` and `8.8.8.8` (type `dns`) read **66% availability** shortly after a
+  reboot while **every ICMP monitor stayed at 100%** — and both recovered to
+  100% on their own within the hour. Independently verified from cevo: 30/30
+  plain-DNS queries to 1.1.1.1, 8.8.8.8 and 9.9.9.9, and 0% ICMP loss. So the
+  alert tracks a rolling window that includes the reboot, not a real outage.
+  Turning off `auto_upgrade` is the lever for both this and the HA errors.
+- **Guest was renumbered off `192.168.100.0/24` → `192.168.20.0/24`
+  (2026-09-04)** because Virgin Media hubs in bridge mode expose their status
+  page on `192.168.100.1`, which the Guest subnet was shadowing. Safe: 0
+  clients, no SSID bound, no repo or AdGuard references.
+  **It did NOT make the modem reachable, and cannot on its own.** A static
+  interface-route for `192.168.100.0/24` out the WAN was tried and removed
+  again: the gateway sources those packets from `89.100.220.88`, which is not in
+  `192.168.100.0/24`, so the modem has no route back. Reaching it needs a WAN
+  side address in that range, which UniFi does not expose — so use a machine
+  plugged straight into the hub with a static `192.168.100.x`. The renumber is
+  still worth having: the overlap was a latent trap.
+- API notes for this version (Network 10.6): login is `POST /api/auth/login`,
+  everything else is under `/proxy/network/api/s/<site>/`, and non-GET calls
+  need the `X-Csrf-Token` from the login response. **`stat/event` and
+  `list/alarm` are gone** (404/400) — use HA's recorder history on a UniFi
+  entity to measure drops instead. **Never dump `/rest/setting` wholesale**: it
+  contains `x_api_token`, `x_mgmt_key` and an SSH password hash. Whitelist the
+  fields you print.
+
 ## cevo failover (traefik-backup + adguard-backup on unraid)
 
 Two stacks under `portainer/endpoints/unraid/stacks/`, added 2026-09-04 and
@@ -428,8 +473,11 @@ comments in both compose files; the reasoning is long and load-bearing.
   `192.168.0.20, 192.168.0.12, 1.1.1.1`.
 - **`traefik-backup` is BLOCKED until unraid Settings → Docker → "Host access to
   custom networks" is Enabled** (needs the Docker service stopped, so a brief
-  outage for the arr stack, immich, paperless and WireGuard). Measured, not
-  assumed: from a throwaway `br0` container at 192.168.0.19,
+  outage for the arr stack, immich, paperless and WireGuard). The underlying
+  setting is **`DOCKER_CUSTOM_NETWORKS` in `/boot/config/docker.cfg`**, which is
+  currently `" "` (empty = off); `DOCKER_NETWORK_TYPE="1"` confirms ipvlan. With
+  it off there is no shim interface — the host shows only `docker0`. Measured,
+  not assumed: from a throwaway `br0` container at 192.168.0.19,
   `192.168.0.10:7878` and `:80` **failed** while `192.168.0.20`,
   `192.168.0.245` and `1.1.1.1` all succeeded. ipvlan containers cannot reach
   their own parent host, and 9 of the 13 services that survive a cevo outage
