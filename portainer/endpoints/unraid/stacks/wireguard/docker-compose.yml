@@ -89,3 +89,19 @@ services:
     #    (`Endpoint = ${userConfig.host}:${userConfig.port}`), so fixing it
     #    needs no restart and no client recreation — just re-download the
     #    config or re-scan the QR on the device.
+    #
+    # 3. PersistentKeepalive defaults to 0, i.e. DISABLED, and there is no
+    #    INIT_* var for it either (v14 had WG_PERSISTENT_KEEPALIVE=25). It is
+    #    rendered straight from the client row —
+    #    `PersistentKeepalive = ${client.persistentKeepalive}` — with no
+    #    fallback to the user-config default, unlike AllowedIPs and DNS which
+    #    do use `?? default`. So it must be set on the CLIENT, not just the
+    #    default. Both are now 25:
+    #      UPDATE clients_table SET persistent_keepalive=25;
+    #      UPDATE user_configs_table SET default_persistent_keepalive=25;
+    #    Why it matters: mobile carriers drop idle UDP NAT mappings well inside
+    #    a minute, so with keepalive off the tunnel goes quiet and the first
+    #    request after an idle spell stalls while it re-handshakes. It is
+    #    purely client-side — it does not appear in the server's wg0.conf
+    #    [Peer] block — so changing it needs no restart, only a config
+    #    re-download on the device.

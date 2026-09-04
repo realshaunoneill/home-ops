@@ -326,6 +326,17 @@ off, so image digests don't silently update).
   drops them rather than refusing, so it looks like packet loss.
 - `querylog.interval` was `90d`, which had grown `querylog.json` to **1.5 GB**;
   now `7d`. Worth watching — a full disk here takes down DNS for the LAN.
+- **`aaaa_disabled: true`** (2026-09-04). Neither cevo nor unraid has an IPv6
+  default route — there is no IPv6 upstream on this network at all — so AAAA
+  records were only ever leading clients into a black hole. It mattered most
+  over WireGuard: the tunnel hands out `AllowedIPs 0.0.0.0/0, ::/0`, so a phone
+  on an IPv6-preferring carrier routed IPv6 into the tunnel and had to wait for
+  Happy Eyeballs to time out before falling back to IPv4. Suppressing AAAA
+  fixes that without a split-tunnel IPv6 leak, and is correct LAN-wide for the
+  same reason. **Revisit this if the ISP ever provides IPv6** — otherwise it
+  will silently cap the network at v4. Verified: AAAA empty via AdGuard while
+  `1.1.1.1` still returns it, A records and the pass-through exceptions intact,
+  1ms, and Gatus saw 232 probes across the restart with 0 failures.
 - Point router DHCP DNS at `192.168.0.20` to finish the split-horizon story.
 
 ## Cloudflare Tunnel (cloudflared)
@@ -514,6 +525,18 @@ in either app at all, which is why `/plex/torrent` sits empty).
 - A client dialling the WAN IP from **inside** the LAN needs NAT hairpinning on
   the router, which often is not supported. A tunnel that fails at home but
   works on mobile data is expected and not a misconfiguration.
+- **VPN clients reach the LAN because of the masquerade, not a route.** The
+  `-s 10.8.0.0/24 -o br0` rule NATs tunnel traffic to `192.168.0.10` on its way
+  out, so LAN hosts reply to unraid rather than to `10.8.0.x`. That is why no
+  static route for `10.8.0.0/24` is needed on the router — and why AdGuard sees
+  VPN DNS queries coming from `192.168.0.10`. Verified reachable from a
+  `10.8.0.1` source: Traefik `:443`, AdGuard `:53`, unraid, Portainer, Plex
+  `:32400`, Home Assistant `:8123`, Proxmox `:8006`, the router, and the
+  internet.
+- `PersistentKeepalive` is **0 (disabled) by default and has no INIT_* var**;
+  set to 25 for roaming clients. It renders with no fallback to the user-config
+  default, so it must be set on the client row itself — details in
+  `wireguard/docker-compose.yml`.
 - **The three homelable images are grouped into one Renovate PR.** They share a
   version and a versioned API, so a solo frontend bump would leave it talking
   to an older backend; the shared `groupName` makes the bump atomic. Their tags
