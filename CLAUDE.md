@@ -48,12 +48,31 @@ router/gateway `192.168.0.1`, proxmox `192.168.0.200`, home-assistant
     had no config, and the docker-label routers failed resolving
     `default-chain@file`. TLS kept working off the wildcard default cert, so the
     signature is a uniform **404 on every hostname with a valid certificate** —
-    it looks like a routing bug, not a missing mount. Check
-    `docker inspect traefik --format '{{range .Mounts}}{{.Destination}} {{end}}'`;
-    if `/etc/traefik/dynamic` is absent, that's this. Fix by redeploying the
+    it looks like a routing bug, not a missing mount. Fix by redeploying the
     *stack* (which re-runs the unpacker and restores the configs), not the
     container. Portainer logs the culprit as
     `handler/docker/containers/recreate.go`.
+  - **DO NOT diagnose this with `.Mounts` — that check is wrong and will scare
+    you.** This Portainer **copies inline `configs:` INTO the container** at
+    create time rather than bind-mounting them, so
+    `docker inspect traefik --format '{{range .Mounts}}...'` shows **only** the
+    two real binds (`docker.sock`, `letsencrypt`) and **zero**
+    `/etc/traefik/dynamic` entries on a perfectly healthy container. Verified
+    2026-09-04: mounts showed none, while `/api/http/routers` reported 18 file
+    routers and every hostname returned 200. The authoritative check is Traefik's
+    own API:
+    ```
+    curl -s http://localhost:8080/api/http/routers \
+      | jq -r 'group_by(.provider)[] | "\(.[0].provider) \(length)"'
+    ```
+    Expect roughly `file 18`, `docker 9`, `internal 4`. A collapsed `file` count
+    is the real symptom.
+  - **Corollary: an inline-config change needs the container RECREATED, not just
+    a redeploy.** Because the files are baked in at create time, Traefik's file
+    watcher cannot help and a `git/redeploy` returning 200 may leave the old
+    container running with the old config (hit on traefik-backup: redeploy said
+    200, container was still hours old, new router absent). What works:
+    `DELETE /containers/<name>?force=true` then redeploy the stack.
 - Host-path volumes (`/opt/...`, `/mnt/user/...`) are fine anywhere and need no
   special setting — most stacks only use these.
 - **"Pull and redeploy"** applies compose/inline-config changes. Static Traefik
@@ -489,6 +508,18 @@ recurring complaints.
     and the SNAT rule, and access was restored within 36s.
   - `/etc/cron.d` does NOT survive a firmware upgrade. After one, re-add:
     `echo '* * * * * root /data/modem-access.sh' > /etc/cron.d/modem-access`
+  - **Use `https://modem.home.shaunoneill.com`, not the raw IP.** Routed by both
+    Traefik instances (`dyn_modem` on cevo, `modem` in traefik-backup). This is
+    not cosmetic: the MacBook **cannot** reach `192.168.100.1` directly because a
+    full-tunnel corporate VPN (Cisco AnyConnect / GlobalProtect, `utun4` →
+    `10.15.201.103`) owns its default route. `192.168.0.0/24` works there only
+    because it is directly connected on `en0`; the modem's subnet is reached via
+    the gateway, so with no more-specific route it vanishes into the tunnel. The
+    hostname sidesteps that entirely — it resolves to `192.168.0.20`, which is
+    on-link — and it also works from phones and over WireGuard. Verified from the
+    Mac with the VPN up: 200, 43555 bytes, 0.14s, while the raw IP still fails.
+    A static route on the Mac would also work but needs sudo, does not survive
+    VPN reconnects, and means poking holes in a work VPN's routing.
 - API notes for this version (Network 10.6): login is `POST /api/auth/login`,
   everything else is under `/proxy/network/api/s/<site>/`, and non-GET calls
   need the `X-Csrf-Token` from the login response. **`stat/event` and
