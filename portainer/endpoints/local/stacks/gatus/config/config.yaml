@@ -235,6 +235,34 @@ endpoints:
     alerts:
       - type: pushover
 
+  # Every other check here is LAN-internal, so a total WAN outage would show up
+  # as 22 green endpoints and no alert. This is the only thing watching the
+  # internet itself. Queried straight at 1.1.1.1 (not AdGuard) so it tests the
+  # WAN path rather than local resolution.
+  #
+  # one.one.one.one is deliberate: TTL ~71000s at both public resolvers, so it
+  # is effectively always cached and the probe never depends on a third party's
+  # authoritative servers. Do NOT use ui.com here — 60s TTL, which is what makes
+  # UniFi's own WAN monitors so flappy (see CLAUDE.md "WAN health monitoring").
+  #
+  # Known limit: the gateway's false WAN-down blackholes last ~15s, so this
+  # 30s/3-failure check will NOT catch them. The gateway log is the detector for
+  # those. This exists to catch genuine multi-minute outages.
+  - name: internet
+    group: infra
+    url: "1.1.1.1"
+    interval: 30s
+    dns:
+      query-name: "one.one.one.one"
+      query-type: "A"
+    conditions:
+      - "[CONNECTED] == true"
+      # No [BODY] assertion: one.one.one.one answers 1.1.1.1 AND 1.0.0.1, and
+      # which one lands in BODY is not stable. RCODE is the real signal.
+      - "[DNS_RCODE] == NOERROR"
+    alerts:
+      - type: pushover
+
   # --- Failover pair on unraid (see CLAUDE.md "cevo failover") ---
   # These exist so the warm spare cannot rot unnoticed: a backup you only
   # discover is broken during an outage is worse than none.
@@ -270,6 +298,29 @@ endpoints:
       - "[DNS_RCODE] == NOERROR"
       # Backup must point at the unraid traefik, or failover is silently broken.
       - "[BODY] == 192.168.0.11"
+    alerts:
+      - type: pushover
+
+  # adguard-dns-primary above only asserts a REWRITE, which AdGuard answers out
+  # of its own config without ever touching an upstream — so it stays green even
+  # if upstream resolution is completely dead. This check queries a pass-through
+  # name instead, which forces a real upstream lookup, and is the only thing
+  # covering the primary's upstreams. Both instances now carry two DoH upstreams
+  # plus a plain-DNS fallback_dns; before that they had a single Quad9 DoH and one
+  # hiccup meant SERVFAIL for the whole network.
+  - name: adguard-dns-primary-upstream
+    group: failover
+    url: "192.168.0.20"
+    interval: 300s
+    dns:
+      query-name: "local.home.shaunoneill.com"
+      query-type: "A"
+    conditions:
+      - "[CONNECTED] == true"
+      - "[DNS_RCODE] == NOERROR"
+      # Must NOT be rewritten to a LAN address.
+      - "[BODY] != 192.168.0.11"
+      - "[BODY] != 192.168.0.20"
     alerts:
       - type: pushover
 

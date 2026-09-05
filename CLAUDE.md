@@ -337,6 +337,22 @@ off, so image digests don't silently update).
     only because** Traefik pins lego to
     `--certificatesresolvers.myresolver.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53`
     and so never asks AdGuard. Do not remove that flag.
+- **Both instances now have two DoH upstreams plus a plain-DNS `fallback_dns`
+  (2026-09-05).** They each ran a *single* upstream
+  (`https://dns10.quad9.net/dns-query`) with `fallback_dns: []`, so one DoH hiccup
+  meant SERVFAIL for the whole network — the cause of the intermittent
+  `adguard-dns-*` SERVFAILs in Gatus. Now:
+  `upstream_dns: [dns10.quad9.net, dns.cloudflare-dns.com]` (both DoH, both
+  unfiltered, matching `dns10`'s "let AdGuard do the filtering" intent) and
+  `fallback_dns: [9.9.9.10, 1.1.1.1]` — deliberately **plain UDP 53**, so a
+  fallback survives whatever broke DoH. `upstream_mode: load_balance` spreads
+  across the two. Verified 0/40 upstream-dependent queries lost afterwards.
+  - Applied by stopping the container, PUTting the file through Portainer's
+    archive API, then `/restart` (Portainer's proxy rejects `/start` with a body).
+    Do the **backup first** so a working resolver always remains.
+  - **`ADGUARD_PASSWORD` in `.service-api-keys.local.env` is empty**, so
+    `/control/*` returns 401/403 and the API is not usable. File edits are the
+    only route until that is filled in.
 - **`ratelimit` was 20 q/s and is now 200, with `127.0.0.1` and `192.168.0.20`
   whitelisted.** The trap is `ratelimit_subnet_len_ipv4: 24`: clients are
   bucketed per /24, so the **entire LAN shared one 20 q/s allowance**, and this
@@ -453,14 +469,11 @@ recurring complaints.
   with **`auto_upgrade: true, auto_upgrade_hour: 3`**; one was the UniFi OS
   10.5.67 → 10.6.101 upgrade. Switches and APs had uptimes of weeks throughout,
   so only the gateway restarted. It self-heals; nothing to fix.
-- **"Internet disruption" alerts are false positives from the same reboots.**
-  The WAN has six uptime monitors and only the **DNS-type** ones alert:
-  `1.1.1.1` and `8.8.8.8` (type `dns`) read **66% availability** shortly after a
-  reboot while **every ICMP monitor stayed at 100%** — and both recovered to
-  100% on their own within the hour. Independently verified from cevo: 30/30
-  plain-DNS queries to 1.1.1.1, 8.8.8.8 and 9.9.9.9, and 0% ICMP loss. So the
-  alert tracks a rolling window that includes the reboot, not a real outage.
-  Turning off `auto_upgrade` is the lever for both this and the HA errors.
+- **"Internet disruption" alerts are UniFi's DNS monitors blackholing a healthy
+  WAN. This is the single biggest source of real, user-visible outages here** —
+  see "WAN health monitoring" below. Earlier notes blamed gateway reboots and
+  then a marginal 2.5G PHY; both were wrong as the main cause. The reboot theory
+  is dead: 162 WAN-down decisions in 5 days against ~1 reboot.
 - **Guest was renumbered off `192.168.100.0/24` → `192.168.20.0/24`
   (2026-09-04)** because Virgin Media hubs in bridge mode expose their status
   page on `192.168.100.1`, which the Guest subnet was shadowing. Safe: 0
@@ -476,10 +489,12 @@ recurring complaints.
   was negotiating 2500 against the hub, but the ISP service is 1 Gbps so the
   extra rate bought nothing — and 2.5GBASE-T is far more sensitive to
   cable/PHY marginality than 1000BASE-T, which is a known cause of the
-  intermittent WAN drops being alerted on. The kernel log shows a real flap
-  (`nss-dp ... eth4: PHY Link is down` then up 3s later), so those alerts were
-  **not** purely the DNS-monitor false positives diagnosed earlier — revise that
-  note accordingly: there were both.
+  intermittent WAN drops being alerted on. It did fix the physical flapping —
+  but **the drops continued, so this was never the cause of the alerts.** Since
+  the pin, `eth4` has had **zero** carrier changes outside deliberate config
+  changes, while WAN-down events carried on at 20-47/day. The real cause is the
+  DNS monitors (next section). The one 3s PHY flap in the kernel log was genuine
+  but isolated — do not read it as the explanation.
   - Set via `port_overrides` on the device (`PUT /rest/device/<id>` with
     `{port_idx: 5, speed: 1000, full_duplex: true, autoneg: false}`), NOT
     `ethtool`. **`ethtool` on this interface reports nonsense** — it claims
@@ -527,6 +542,97 @@ recurring complaints.
   entity to measure drops instead. **Never dump `/rest/setting` wholesale**: it
   contains `x_api_token`, `x_mgmt_key` and an SSH password hash. Whitelist the
   fields you print.
+
+## WAN health monitoring — UniFi's DNS monitors cause real outages
+
+**Investigated 2026-09-05. This is why the internet "drops" for ~15s several
+times a day.** It is not the ISP, not the cable, not the modem.
+
+The gateway runs 7 WAN health monitors, in
+`/services/wanFailover/wanInterfaces[0]/monitors` of the newest
+`/data/udapi-config/udapi-net-cfg-*.json` (the file whose hash matches the
+device's `cfgversion`):
+
+| ids | type | target | down events in 5 days |
+| --- | --- | --- | --- |
+| 1, 4 | icmp | `ping.ui.com` | **0** |
+| 5, 6, 7 | icmp | `www.microsoft.com`, `google.com`, `1.1.1.1` | **0** |
+| 2, 3 | **dns** | `ui.com` @ `1.1.1.1` / `8.8.8.8` | **297 / 321** |
+
+`ping.ui.com` → `ping2.ui.com` → **`1.1.1.1` and `8.8.8.8`** — so the ICMP and
+DNS monitors hit the *same hosts*. ICMP never fails; DNS fails constantly. That
+alone isolates the fault to the DNS probe, not the network. ICMP uses `dpinger`;
+the DNS monitors are UniFi's own `dns-monitor`, and only the latter is broken.
+
+**Why a probe artefact becomes a real outage.** When both DNS monitors trip:
+
+```
+wan-failover-monitor-dns: wf-monitor-eth4-2-dns (89.100.220.88->1.1.1.1) ... is down (loss=100/- !dns_avail=0%)
+wan-failover-interfaces:  wf-interface-eth4 (89.100.220.88) is down [UDD____]
+wan-failover-group-base:  wf-group-1-single is down [d](eth4)
+```
+
+`[UDD____]` is the per-monitor state vector — **`U` is the ICMP monitor still up**
+while both `D`s are DNS. Marking the group down installs
+`table 251.blackhole` = `blackhole default proto PBR`, and
+`connectionResetTriggers` includes **`onWanHealthBad`**, so live connections are
+reset too. **There is only one WAN** (`algorithm: "single"`, eth4), so there is
+nowhere to fail over to — declaring it down is pure self-harm.
+
+**162 WAN-down decisions in 5 days**, escalating 15 → 30 → 47 → 47 → 23.
+
+**The monitors mis-measure.** Steady state on a *healthy* link is
+`loss=67/100 dns_avail=33%`, i.e. 2 of 3 window slots always counted lost, with
+`interval:10 / timePeriod:30` giving only **3 samples** and `lossThreshold:100`
+requiring all 3 — so it sits permanently one probe from tripping. Measured from
+the gateway at the same time: 200/200 rapid-fire queries fine, and **1 failure in
+240** on a sustained 1/s test (0.4%), ~8ms. 0.4% cannot produce 67%.
+
+`ui.com`'s authoritative TTL is **60s** (a `dig` showing `3` is just a
+near-expired cache entry), so ~1 probe in 6 must recurse to Ubiquiti's Route53
+servers. That is a contributing factor, not the mechanism — and it does explain
+why *both* resolvers fail in the same second: they share one authoritative
+dependency.
+
+### There is no supported lever for this (all tested, 2026-09-05)
+
+- **`usg.dns_verification`** (`{setting_preference, primary_dns_server,
+  secondary_dns_server, domain}`, defaults `1.1.1.1` / `8.8.8.8` / `ui.com`) looks
+  like the knob and **is completely inert.** Setting it to `manual` with a
+  different domain and different servers produced a **byte-identical** generated
+  config — the monitor targets are hardcoded by the controller. Don't burn time
+  here again.
+- **`usg.unbind_wan_monitors`** is **actively harmful**: it is a BGP-only toggle
+  (`SETTINGS_ROUTING_BGP_OVERRIDE_WAN_MONITORS`) and BGP is not in use. Setting it
+  `true` **added a phantom `wanInterfaces[1]` (WAN2) with 7 more monitors**,
+  including 2 more DNS ones. Reverted.
+- **The WAN networkconf has no health-check fields at all** — checked every key.
+  There is no per-WAN monitor UI in Network 10.6.101.
+- Never edit `/data/udapi-config/udapi-net-cfg-*.json` directly; the controller
+  regenerates it. Changes that *do* take effect show up as a new file within ~2min
+  plus a new `cfgversion` on the device.
+
+So the options left are a Ubiquiti support case, a firmware update, or
+intercepting the gateway's own probes on-box (same pattern as
+`/data/modem-access.sh`). **Not yet done — decide before implementing.**
+
+### Diagnosing this quickly next time
+
+`/var/log/messages` (NOT `daemon.log` — the wan-failover lines are only in
+`messages`; `daemon.log` has `linkcheck`/speedtest and systemd-networkd only):
+
+```sh
+# real WAN-down decisions per day
+grep -ah wan-failover-interfaces /var/log/messages | grep -a 'is down' | cut -c1-10 | sort | uniq -c
+# which monitor type is failing — the whole diagnosis in one command
+grep -ah wan-failover-monitor /var/log/messages | grep -a 'is down' | grep -aoE 'wf-monitor-[a-z0-9-]+' | sort | uniq -c
+# physical truth, independent of UniFi's opinion
+cat /sys/class/net/eth4/{speed,carrier,carrier_changes}; dmesg | grep -i eth4
+```
+
+**If ICMP counts are 0 and DNS counts are not, the WAN is fine and UniFi is
+lying.** `carrier_changes` is the tiebreaker: it only increments on a genuine
+link event, so a stable count across an "outage" proves the link never dropped.
 
 ## cevo failover (traefik-backup + adguard-backup on unraid)
 
