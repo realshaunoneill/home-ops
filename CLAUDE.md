@@ -505,8 +505,28 @@ recurring complaints.
   - Applying it bounces the link. 1000BASE-T requires autoneg, so a forced speed
     can fail to link at all; the change was made with automatic revert on
     failure. It came up at 1000 full duplex in under 9s, WAN IP retained.
-- **The modem/hub IS now reachable from the LAN at `http://192.168.100.1`** —
-  it needs a login, and identifies as a DOCSIS device in "modem mode".
+- **The modem/hub IS now reachable from the LAN at `http://192.168.100.1`.**
+  **It is NOT a DOCSIS cable modem** — earlier notes here said so and were wrong.
+  It is a Virgin Media Ireland **"Fibre Hub"**, an **XGS-PON ONT**
+  (`standardCompliance: ITU-T G.9807.1`), running in modem mode
+  (`/rest/v1/system/modemmode` → `{"enable":true}`). So there are no DOCSIS
+  downstream/upstream power levels, SNR or T3/T4 timeouts to chase — the
+  equivalents live under `/rest/v1/pon/*`.
+  - **Useful endpoints need NO auth** (`/rest/v1/cablemodem/*` does, and is a
+    dead end anyway): `/pon/state` (status, `standardCompliance`, `upTime`),
+    **`/pon/eventlog`** (100-entry ring buffer — the single most useful thing on
+    the box), `/pon/status`, `/system/modemmode`,
+    `/system/gateway/provisioning`, `/mta/lines`. Endpoint names are built
+    dynamically in JS, so grep the loaded scripts for quoted `/...` paths rather
+    than guessing.
+  - **Its clock stamps local time but labels it `Z`.** Treat `...T16:10:36.000Z`
+    as 16:10 IST, not UTC, or every correlation will be an hour out.
+  - `/pon/eventlog` holds only 100 entries (~3.5h when busy), so
+    **`unifi/modem-eventlog.sh` → `/data/modem-eventlog.sh` runs every 10min
+    from `/etc/cron.d/modem-eventlog`** and appends to
+    `/data/modem-eventlog.jsonl`, deduped by (time,message) with a per-run
+    `pon_state` snapshot for uptime tracking. Same firmware-upgrade caveat as
+    `modem-access`: `/etc/cron.d` does not survive one.
   - Renumbering Guest off `192.168.100.0/24` was necessary but **not
     sufficient**, and a static route is **not** the answer: the gateway sources
     from `89.100.220.88`, which is outside the hub's subnet, so it cannot reply.
@@ -581,18 +601,42 @@ nowhere to fail over to — declaring it down is pure self-harm.
 
 **162 WAN-down decisions in 5 days**, escalating 15 → 30 → 47 → 47 → 23.
 
-**The monitors mis-measure.** Steady state on a *healthy* link is
-`loss=67/100 dns_avail=33%`, i.e. 2 of 3 window slots always counted lost, with
-`interval:10 / timePeriod:30` giving only **3 samples** and `lossThreshold:100`
-requiring all 3 — so it sits permanently one probe from tripping. Measured from
-the gateway at the same time: 200/200 rapid-fire queries fine, and **1 failure in
-240** on a sustained 1/s test (0.4%), ~8ms. 0.4% cannot produce 67%.
+**The monitors are over-sensitive, but they are NOT imagining it.** Both halves
+matter, and an earlier version of this section wrongly said the network was fine
+and UniFi was lying. What is actually true:
 
-`ui.com`'s authoritative TTL is **60s** (a `dig` showing `3` is just a
-near-expired cache entry), so ~1 probe in 6 must recurse to Ubiquiti's Route53
-servers. That is a contributing factor, not the mechanism — and it does explain
-why *both* resolvers fail in the same second: they share one authoritative
-dependency.
+*The monitor amplifies.* Steady state on a healthy link reads
+`loss=67/100 dns_avail=33%` — 2 of 3 window slots counted lost, because
+`interval:10 / timePeriod:30` gives only **3 samples** and `lossThreshold:100`
+needs all 3. So it sits permanently one probe from tripping. The 67% is a
+**latency tail, not loss**: at a 1s timeout, DNS to 1.1.1.1 failed 9 times in 2
+minutes while ICMP to *the same host* lost nothing; at a 2s timeout it was
+**0/150 to each of 1.1.1.1, 8.8.8.8 and 9.9.9.9**, baseline ~8ms. `ui.com`'s
+authoritative TTL is **60s** (a `dig` showing `3` is a near-expired cache entry),
+so ~1 probe in 6 must recurse to Route53 — which is where the slow tail comes
+from, and why *both* resolvers go down in the same second: one shared
+authoritative dependency.
+
+*But there is also a real ISP fault.* The Fibre Hub's own `/pon/eventlog`
+independently logged **54 × `IPoE IPv4 ping failed`** and **7 ×
+`IPoE IPv4 Health Check Failed Recovering Service`** between 12:38 and 13:47 on
+2026-09-05, matching UniFi's decisions to the second (modem 13:19:00 vs UniFi
+13:18:50; modem 13:35:44 vs UniFi 13:35:40). Two independent devices, same
+moments. **The fault is upstream of the fibre, in the ISP's IPoE layer**, not the
+Ethernet and not the ONT: `/pon/state` stayed `Online` with 26h+ `upTime`, zero
+LOS/deregistration/sync events, and 0% ICMP loss to the modem, the ISP first hop
+(`89.100.220.1`) and beyond. **So the alerts track something genuine; UniFi's
+response to it (blackhole + connection reset, on a single WAN) is what turns a
+~10-20s upstream wobble into a harder outage than it needs to be.**
+
+Caveat worth remembering: the hub's ring buffer only went back to 12:38, so the
+earlier events that day could not be cross-checked. That is exactly why
+`modem-eventlog.sh` now runs on a cron.
+
+**IPv6 is separately half-provisioned** and probably worth raising with the ISP
+in the same breath: **38 × `Gateway ipv6 address is empty`** in the same log and
+still recurring, `eth4` holds only a `/128`, and `/data/udapi-config/pd.leases`
+is **empty** — so DHCPv6-PD never yields a prefix and the LAN gets no IPv6.
 
 ### There is no supported lever for this (all tested, 2026-09-05)
 
@@ -630,9 +674,24 @@ grep -ah wan-failover-monitor /var/log/messages | grep -a 'is down' | grep -aoE 
 cat /sys/class/net/eth4/{speed,carrier,carrier_changes}; dmesg | grep -i eth4
 ```
 
-**If ICMP counts are 0 and DNS counts are not, the WAN is fine and UniFi is
-lying.** `carrier_changes` is the tiebreaker: it only increments on a genuine
-link event, so a stable count across an "outage" proves the link never dropped.
+Then get the **independent** view from the modem, which is what settles whether
+the ISP is actually at fault — do this before blaming UniFi:
+
+```sh
+curl -s http://192.168.100.1/rest/v1/pon/state      # Online? upTime reset?
+curl -s http://192.168.100.1/rest/v1/pon/eventlog   # IPoE ping failed / LOS?
+grep '"kind":"event"' /data/modem-eventlog.jsonl | tail -50   # beyond the ring buffer
+```
+
+Reading it:
+
+- **ICMP 0, DNS non-zero, `carrier_changes` flat, and the modem log clean** →
+  monitor over-sensitivity only. `carrier_changes` is the tiebreaker; it only
+  increments on a genuine link event.
+- **Modem logs `IPoE IPv4 ping failed` at the same times** → a real ISP-side
+  fault. Report it, with those timestamps.
+- **`pon.upTime` reset, or LOS/deregistration events** → the fibre link itself
+  dropped. Nothing above applies; that is a line/ONT fault.
 
 ## cevo failover (traefik-backup + adguard-backup on unraid)
 
