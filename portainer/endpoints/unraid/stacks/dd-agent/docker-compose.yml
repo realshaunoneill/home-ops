@@ -8,7 +8,11 @@ services:
     environment:
       - TZ=Europe/Dublin
       - DD_API_KEY=${DD_API_KEY}
-      - DD_SITE=datadoghq.com
+      # EU1, not US1 — the shaunoneill7@gmail.com org is on datadoghq.eu. An API
+      # key is scoped to one site, so DD_SITE and DD_API_KEY must be changed
+      # together; a US1 key against .eu (or vice versa) fails closed as 403
+      # Forbidden and the agent ships nothing while still looking healthy.
+      - DD_SITE=datadoghq.eu
       - DD_PROCESS_AGENT_ENABLED=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
