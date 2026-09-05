@@ -2,7 +2,7 @@ services:
   mc:
     # itzg publishes dated releases (2026.7.2) plus a rolling `latest`; keep the
     # explicit -java25 variant so a future default JRE bump isn't silent.
-    image: itzg/minecraft-server:2026.7.2-java25
+    image: itzg/minecraft-server:2026.9.0-java25
     tty: true
     stdin_open: true
     ports:
